@@ -65,6 +65,12 @@ fun HomeScreen() {
                 if (ok) "Image loaded successfully" else "Failed to load image — try a different file",
                 Toast.LENGTH_SHORT
             ).show()
+            if (ok) {
+                ImagePlayer.activateInjection()
+                context.sendBroadcast(
+                    android.content.Intent("com.wangyiheng.vcamsx.IMAGE_RELOAD")
+                )
+            }
         }
     }
 
@@ -219,6 +225,9 @@ fun HomeScreen() {
                         if (on) {
                             if (imageHasImage) {
                                 ImagePlayer.activateInjection()
+                                context.sendBroadcast(
+                                    android.content.Intent("com.wangyiheng.vcamsx.IMAGE_RELOAD")
+                                )
                             } else {
                                 Toast.makeText(
                                     context, "Select an image first", Toast.LENGTH_SHORT
