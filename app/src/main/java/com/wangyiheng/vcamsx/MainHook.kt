@@ -76,6 +76,7 @@ class MainHook : IXposedHookLoadPackage {
         hookCamera1(lpparam)
         hookCamera2(lpparam)
         hookImageReader(lpparam)
+        hookImageAvailable(lpparam)
         hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
@@ -368,6 +369,61 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
+    }
+
+    private fun hookImageAvailable(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.ImageReader", cl,
+                "setOnImageAvailableListener",
+                android.media.ImageReader.OnImageAvailableListener::class.java,
+                Handler::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        val origListener = param.args[0]
+                            as? android.media.ImageReader.OnImageAvailableListener ?: return
+
+                        // Wrap the app's listener — intercept JPEG frames and swap bitmap bytes
+                        param.args[0] = android.media.ImageReader.OnImageAvailableListener { reader ->
+                            if (!ImagePlayer.isActive.value) {
+                                origListener.onImageAvailable(reader); return@OnImageAvailableListener
+                            }
+                            try {
+                                val image = reader.acquireLatestImage() ?: run {
+                                    origListener.onImageAvailable(reader); return@OnImageAvailableListener
+                                }
+                                val fmt = image.format
+                                // JPEG format = 256
+                                if (fmt == android.graphics.ImageFormat.JPEG) {
+                                    val stream = java.io.ByteArrayOutputStream()
+                                    // Scale bitmap to match image dimensions
+                                    val scaled = if (bmp.width == image.width && bmp.height == image.height) bmp
+                                                 else android.graphics.Bitmap.createScaledBitmap(
+                                                     bmp, image.width, image.height, true)
+                                    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                                    val jpegBytes = stream.toByteArray()
+                                    val plane = image.planes[0]
+                                    val buf   = plane.buffer
+                                    buf.clear()
+                                    buf.put(jpegBytes, 0, minOf(jpegBytes.size, buf.remaining()))
+                                    if (scaled !== bmp) scaled.recycle()
+                                    XposedBridge.log("$TAG onImageAvailable: JPEG swapped ${jpegBytes.size}b")
+                                }
+                                image.close()
+                                // Fire original listener with swapped data already in buffer
+                                origListener.onImageAvailable(reader)
+                            } catch (e: Exception) {
+                                XposedBridge.log("$TAG onImageAvailable swap: $e")
+                                origListener.onImageAvailable(reader)
+                            }
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookImageAvailable: $e") }
     }
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
