@@ -78,6 +78,7 @@ class MainHook : IXposedHookLoadPackage {
         hookImageReader(lpparam)
         hookImageAvailable(lpparam)
         hookUpdateTexImage(lpparam)
+        hookFileOutput(lpparam)
         hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
@@ -370,6 +371,57 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
+    }
+
+    private fun hookFileOutput(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+
+        // Hook FileOutputStream — intercepts the moment Telegram writes
+        // the captured JPEG to disk. We overwrite with our bitmap bytes.
+        try {
+            XposedHelpers.findAndHookMethod(
+                "java.io.FileOutputStream", cl,
+                "write", ByteArray::class.java, Int::class.java, Int::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        val bytes = param.args[0] as? ByteArray ?: return
+                        val len   = param.args[2] as? Int ?: return
+                        // Only intercept JPEG writes (starts with FF D8 FF)
+                        if (len < 3) return
+                        if (bytes[0] != 0xFF.toByte() ||
+                            bytes[1] != 0xD8.toByte() ||
+                            bytes[2] != 0xFF.toByte()) return
+                        try {
+                            val stream = java.io.ByteArrayOutputStream()
+                            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                            val jpeg = stream.toByteArray()
+                            // Replace the byte array and length with our JPEG
+                            param.args[0] = jpeg
+                            param.args[1] = 0
+                            param.args[2] = jpeg.size
+                            XposedBridge.log("$TAG FileOutputStream JPEG intercepted — ${jpeg.size}b")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG FileOutputStream swap: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookFileOutput: $e") }
+
+        // Also hook ParcelFileDescriptor write path used by some CameraX versions
+        try {
+            XposedHelpers.findAndHookMethod(
+                "java.io.FileDescriptor", cl,
+                "sync",
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        // Intentional no-op — prevents flush racing our write
+                    }
+                }
+            )
+        } catch (_: Exception) {}
     }
 
     private fun hookUpdateTexImage(lpparam: XC_LoadPackage.LoadPackageParam) {
