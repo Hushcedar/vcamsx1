@@ -185,7 +185,8 @@ class MainHook : IXposedHookLoadPackage {
             Camera.PictureCallback::class.java, Camera.PictureCallback::class.java,
             object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
-                    if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                    val status = InfoProcesser.videoStatus
+                    if (status?.isVideoEnable != true && !ImagePlayer.isActive.value) return
                     if (param.args[0] != null) hookYUVCb(param)
                     if (param.args[2] != null) hookJPEGCb(param, 2)
                 }
@@ -433,7 +434,16 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod(param.args[idx].javaClass, "onPictureTaken",
             ByteArray::class.java, Camera::class.java,
             object : XC_MethodHook() {
-                override fun beforeHookedMethod(p: MethodHookParam) { p.args[0] = ByteArray(0) }
+                override fun beforeHookedMethod(p: MethodHookParam) {
+                    val bmp = ImagePlayer.currentBitmapSnapshot()
+                    if (bmp != null) {
+                        val stream = java.io.ByteArrayOutputStream()
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                        p.args[0] = stream.toByteArray()
+                    } else {
+                        p.args[0] = ByteArray(0)
+                    }
+                }
             }
         )
     }
@@ -442,7 +452,16 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
             ByteArray::class.java, Camera::class.java,
             object : XC_MethodHook() {
-                override fun beforeHookedMethod(p: MethodHookParam) { p.args[0] = ByteArray(0) }
+                override fun beforeHookedMethod(p: MethodHookParam) {
+                    val bmp = ImagePlayer.currentBitmapSnapshot()
+                    if (bmp != null) {
+                        val stream = java.io.ByteArrayOutputStream()
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                        p.args[0] = stream.toByteArray()
+                    } else {
+                        p.args[0] = ByteArray(0)
+                    }
+                }
             }
         )
     }
