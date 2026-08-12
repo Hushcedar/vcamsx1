@@ -16,6 +16,7 @@ import android.view.SurfaceHolder
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
 import com.wangyiheng.vcamsx.utils.VideoPlayer
+import com.wangyiheng.vcamsx.utils.ImagePlayer
 import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
