@@ -642,6 +642,65 @@ class MainHook : IXposedHookLoadPackage {
 
     private fun hookImageAvailable(lpparam: XC_LoadPackage.LoadPackageParam) {
         val cl = lpparam.classLoader
+
+        // Hook acquireLatestImage + acquireNextImage — these fire at actual capture time
+        // not at session setup time, so they work even if image mode was enabled after
+        // the camera session was already open.
+        val acquireHook = object : XC_MethodHook() {
+            override fun afterHookedMethod(param: MethodHookParam) {
+                if (!ImagePlayer.isActive.value) return
+                val bmp   = ImagePlayer.currentBitmapSnapshot() ?: return
+                val image = param.result as? android.media.Image ?: return
+                try {
+                    if (image.format != android.graphics.ImageFormat.JPEG) return
+                    val stream = java.io.ByteArrayOutputStream()
+                    val scaled = if (bmp.width == image.width && bmp.height == image.height) bmp
+                                 else android.graphics.Bitmap.createScaledBitmap(
+                                     bmp, image.width, image.height, true)
+                    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                    val jpegBytes = stream.toByteArray()
+                    val buf = image.planes[0].buffer
+                    // Replace entire buffer content
+                    buf.position(0)
+                    buf.limit(buf.capacity())
+                    // Write our JPEG — use a new DirectBuffer copy so the underlying
+                    // native buffer gets the bytes, not just the Java wrapper
+                    val tmp = java.nio.ByteBuffer.allocateDirect(buf.capacity())
+                    tmp.put(jpegBytes, 0, minOf(jpegBytes.size, buf.capacity()))
+                    tmp.flip()
+                    // Copy via reflection to native buffer
+                    val unsafeClass = Class.forName("sun.misc.Unsafe")
+                    val f = unsafeClass.getDeclaredField("theUnsafe")
+                    f.isAccessible = true
+                    val unsafe = f.get(null)
+                    val addrMethod = java.nio.Buffer::class.java.getDeclaredField("address")
+                    addrMethod.isAccessible = true
+                    val destAddr = addrMethod.getLong(buf)
+                    val srcAddr  = addrMethod.getLong(tmp)
+                    val copyBytes = unsafeClass.getMethod("copyMemory",
+                        Long::class.java, Long::class.java, Long::class.java)
+                    copyBytes.invoke(unsafe, srcAddr, destAddr,
+                        minOf(jpegBytes.size, buf.capacity()).toLong())
+                    if (scaled !== bmp) scaled.recycle()
+                    XposedBridge.log("$TAG acquireImage JPEG swapped ${jpegBytes.size}b")
+                } catch (e: Exception) {
+                    XposedBridge.log("$TAG acquireImage: $e")
+                }
+            }
+        }
+
+        try {
+            XposedHelpers.findAndHookMethod("android.media.ImageReader", cl,
+                "acquireLatestImage", acquireHook)
+        } catch (e: Exception) { XposedBridge.log("$TAG acquireLatest: $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod("android.media.ImageReader", cl,
+                "acquireNextImage", acquireHook)
+        } catch (e: Exception) { XposedBridge.log("$TAG acquireNext: $e") }
+
+        // Also keep setOnImageAvailableListener hook but remove the isActive guard
+        // so it wraps ALL sessions regardless of when image mode was enabled
         try {
             XposedHelpers.findAndHookMethod(
                 "android.media.ImageReader", cl,
@@ -650,49 +709,16 @@ class MainHook : IXposedHookLoadPackage {
                 Handler::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (!ImagePlayer.isActive.value) return
-                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
                         val origListener = param.args[0]
                             as? android.media.ImageReader.OnImageAvailableListener ?: return
-
-                        // Wrap the app's listener — intercept JPEG frames and swap bitmap bytes
                         param.args[0] = android.media.ImageReader.OnImageAvailableListener { reader ->
-                            if (!ImagePlayer.isActive.value) {
-                                origListener.onImageAvailable(reader); return@OnImageAvailableListener
-                            }
-                            try {
-                                val image = reader.acquireLatestImage() ?: run {
-                                    origListener.onImageAvailable(reader); return@OnImageAvailableListener
-                                }
-                                val fmt = image.format
-                                // JPEG format = 256
-                                if (fmt == android.graphics.ImageFormat.JPEG) {
-                                    val stream = java.io.ByteArrayOutputStream()
-                                    // Scale bitmap to match image dimensions
-                                    val scaled = if (bmp.width == image.width && bmp.height == image.height) bmp
-                                                 else android.graphics.Bitmap.createScaledBitmap(
-                                                     bmp, image.width, image.height, true)
-                                    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
-                                    val jpegBytes = stream.toByteArray()
-                                    val plane = image.planes[0]
-                                    val buf   = plane.buffer
-                                    buf.clear()
-                                    buf.put(jpegBytes, 0, minOf(jpegBytes.size, buf.remaining()))
-                                    if (scaled !== bmp) scaled.recycle()
-                                    XposedBridge.log("$TAG onImageAvailable: JPEG swapped ${jpegBytes.size}b")
-                                }
-                                image.close()
-                                // Fire original listener with swapped data already in buffer
-                                origListener.onImageAvailable(reader)
-                            } catch (e: Exception) {
-                                XposedBridge.log("$TAG onImageAvailable swap: $e")
-                                origListener.onImageAvailable(reader)
-                            }
+                            // acquireLatestImage hook handles the swap — just fire original
+                            origListener.onImageAvailable(reader)
                         }
                     }
                 }
             )
-        } catch (e: Exception) { XposedBridge.log("$TAG hookImageAvailable: $e") }
+        } catch (e: Exception) { XposedBridge.log("$TAG setOnImageAvail: $e") }
     }
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
