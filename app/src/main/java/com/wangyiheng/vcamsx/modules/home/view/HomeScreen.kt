@@ -224,6 +224,8 @@ fun HomeScreen() {
                     ) { on ->
                         if (on) {
                             if (imageHasImage) {
+                                homeController.isVideoEnabled.value = false
+                                homeController.saveState()
                                 ImagePlayer.activateInjection()
                                 context.sendBroadcast(
                                     android.content.Intent("com.wangyiheng.vcamsx.IMAGE_RELOAD")
