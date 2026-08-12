@@ -41,7 +41,14 @@ object VideoPlayer {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                val frame = VideoToFrames.data_buffer
+                // Image mode: generate NV21 from bitmap instead of video decoder
+                val frame = if (ImagePlayer.isActive.value) {
+                    ImagePlayer.currentBitmapSnapshot()?.let { bmp ->
+                        bitmapToNv21(bmp, 720, 1280)
+                    } ?: VideoToFrames.data_buffer
+                } else {
+                    VideoToFrames.data_buffer
+                }
                 if (frame.size > 1) {
                     imageWriters.forEach { (writer, info) ->
                         val (_, w, h) = info
@@ -333,6 +340,33 @@ object VideoPlayer {
             mediaPlayer?.release();    mediaPlayer       = null
             isInitializing = false
         }
+    }
+
+    private fun bitmapToNv21(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray {
+        val scaled = if (src.width == outW && src.height == outH) src
+                     else android.graphics.Bitmap.createScaledBitmap(src, outW, outH, true)
+        val argb  = IntArray(outW * outH)
+        scaled.getPixels(argb, 0, outW, 0, 0, outW, outH)
+        if (scaled !== src) scaled.recycle()
+        val nv21  = ByteArray(outW * outH * 3 / 2)
+        var yIdx  = 0; var uvIdx = outW * outH
+        for (row in 0 until outH) {
+            for (col in 0 until outW) {
+                val px = argb[row * outW + col]
+                val r  = (px shr 16) and 0xFF
+                val g  = (px shr  8) and 0xFF
+                val b  =  px         and 0xFF
+                val y  = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
+                nv21[yIdx++] = y.coerceIn(16, 235).toByte()
+                if (row % 2 == 0 && col % 2 == 0) {
+                    val cb = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
+                    val cr = ((112 * r - 94 * g - 18 * b + 128) shr 8) + 128
+                    nv21[uvIdx++] = cr.coerceIn(16, 240).toByte()
+                    nv21[uvIdx++] = cb.coerceIn(16, 240).toByte()
+                }
+            }
+        }
+        return nv21
     }
 
     fun releaseMediaPlayer() {
