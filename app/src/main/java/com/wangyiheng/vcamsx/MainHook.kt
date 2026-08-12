@@ -80,6 +80,7 @@ class MainHook : IXposedHookLoadPackage {
         hookImageAvailable(lpparam)
         hookUpdateTexImage(lpparam)
         hookFileOutput(lpparam)
+        hookPixelRead(lpparam)
         hookTelegramCapture(lpparam)
         hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
@@ -373,6 +374,93 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
+    }
+
+    private fun hookPixelRead(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+
+        // Hook PixelCopy.request — used by Telegram grid mode to read preview frame
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            try {
+                XposedHelpers.findAndHookMethod(
+                    "android.view.PixelCopy", cl, "request",
+                    android.view.Surface::class.java,
+                    android.graphics.Rect::class.java,
+                    android.graphics.Bitmap::class.java,
+                    android.view.PixelCopy.OnPixelCopyFinishedListener::class.java,
+                    android.os.Handler::class.java,
+                    object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            if (!ImagePlayer.isActive.value) return
+                            val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                            val dest = param.args[2] as? android.graphics.Bitmap ?: return
+                            val listener = param.args[3]
+                                as? android.view.PixelCopy.OnPixelCopyFinishedListener ?: return
+                            val handler = param.args[4] as? android.os.Handler ?: return
+                            try {
+                                // Draw our bitmap into the destination bitmap
+                                val canvas = android.graphics.Canvas(dest)
+                                canvas.drawBitmap(
+                                    bmp, null,
+                                    android.graphics.RectF(
+                                        0f, 0f,
+                                        dest.width.toFloat(),
+                                        dest.height.toFloat()
+                                    ), null
+                                )
+                                // Fire success callback — skip the real PixelCopy
+                                handler.post {
+                                    listener.onPixelCopyFinished(android.view.PixelCopy.SUCCESS)
+                                }
+                                param.setResult(null)
+                                XposedBridge.log("$TAG PixelCopy intercepted — bitmap injected")
+                            } catch (e: Exception) {
+                                XposedBridge.log("$TAG PixelCopy: $e")
+                            }
+                        }
+                    }
+                )
+            } catch (e: Exception) { XposedBridge.log("$TAG hookPixelCopy: $e") }
+        }
+
+        // Hook glReadPixels — fallback path some Telegram versions use
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.opengl.GLES20", cl, "glReadPixels",
+                Int::class.java, Int::class.java, Int::class.java, Int::class.java,
+                Int::class.java, Int::class.java, java.nio.Buffer::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        val w   = param.args[2] as? Int ?: return
+                        val h   = param.args[3] as? Int ?: return
+                        val buf = param.args[6] as? java.nio.ByteBuffer ?: return
+                        try {
+                            val scaled = if (bmp.width == w && bmp.height == h) bmp
+                                         else android.graphics.Bitmap.createScaledBitmap(
+                                             bmp, w, h, true)
+                            // Convert to RGBA for glReadPixels format
+                            val rgba = android.graphics.Bitmap.createBitmap(
+                                w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(rgba)
+                            // Flip vertically — GL reads bottom-up
+                            val matrix = android.graphics.Matrix()
+                            matrix.setScale(1f, -1f)
+                            matrix.postTranslate(0f, h.toFloat())
+                            canvas.drawBitmap(scaled, matrix, null)
+                            rgba.copyPixelsToBuffer(buf)
+                            rgba.recycle()
+                            if (scaled !== bmp) scaled.recycle()
+                            param.setResult(null)
+                            XposedBridge.log("$TAG glReadPixels intercepted ${w}x${h}")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG glReadPixels: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookGLRead: $e") }
     }
 
     private fun hookTelegramCapture(lpparam: XC_LoadPackage.LoadPackageParam) {
