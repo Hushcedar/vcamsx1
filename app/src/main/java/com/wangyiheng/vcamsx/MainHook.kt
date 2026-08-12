@@ -48,6 +48,7 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var c2VirtualSurfaceTexture:            SurfaceTexture? = null
         @JvmField var c2_virtual_surface:                 Surface?        = null
         @JvmField var sessionConfiguration:               SessionConfiguration? = null
+        val captureOutputFiles: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
         @JvmField var outputConfiguration:                OutputConfiguration?  = null
         @JvmField var fake_sessionConfiguration:          SessionConfiguration? = null
         @JvmField var isPlaying    = false
@@ -79,6 +80,7 @@ class MainHook : IXposedHookLoadPackage {
         hookImageAvailable(lpparam)
         hookUpdateTexImage(lpparam)
         hookFileOutput(lpparam)
+        hookTelegramCapture(lpparam)
         hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
@@ -371,6 +373,88 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
+    }
+
+    private fun hookTelegramCapture(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+
+        // Hook File.renameTo — Telegram writes capture to tmp file then renames it
+        try {
+            XposedHelpers.findAndHookMethod("java.io.File", cl, "renameTo",
+                java.io.File::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp  = ImagePlayer.currentBitmapSnapshot() ?: return
+                        val dest = param.args[0] as? java.io.File ?: return
+                        val path = dest.absolutePath.lowercase()
+                        // Only intercept image files
+                        if (!path.endsWith(".jpg") && !path.endsWith(".jpeg") &&
+                            !path.endsWith(".png")) return
+                        try {
+                            java.io.FileOutputStream(dest).use { fos ->
+                                bmp.compress(
+                                    android.graphics.Bitmap.CompressFormat.JPEG, 95, fos)
+                            }
+                            XposedBridge.log("$TAG renameTo intercepted: ${dest.absolutePath}")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG renameTo write: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookRenameTo: $e") }
+
+        // Hook FileOutputStream close — fires when Telegram finishes writing capture
+        try {
+            XposedHelpers.findAndHookConstructor("java.io.FileOutputStream", cl,
+                java.io.File::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val file = param.args[0] as? java.io.File ?: return
+                        val path = file.absolutePath.lowercase()
+                        if (!path.endsWith(".jpg") && !path.endsWith(".jpeg") &&
+                            !path.endsWith(".png")) return
+                        // Tag this stream so we overwrite on close
+                        param.thisObject.javaClass
+                            .getDeclaredField("fd")?.let { }
+                        captureOutputFiles.add(file.absolutePath)
+                        XposedBridge.log("$TAG FOS opened: ${file.absolutePath}")
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookFOSCtor: $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod("java.io.FileOutputStream", cl, "close",
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        // Get the file descriptor path via reflection
+                        try {
+                            val fdField = param.thisObject.javaClass.superclass
+                                ?.getDeclaredField("path")
+                                ?: param.thisObject.javaClass.getDeclaredField("path")
+                            fdField.isAccessible = true
+                            val path = (fdField.get(param.thisObject) as? String)
+                                ?.lowercase() ?: return
+                            if (!captureOutputFiles.remove(path)) return
+                            val file = java.io.File(path)
+                            if (!file.exists()) return
+                            java.io.FileOutputStream(file).use { fos ->
+                                bmp.compress(
+                                    android.graphics.Bitmap.CompressFormat.JPEG, 95, fos)
+                            }
+                            XposedBridge.log("$TAG FOS.close overwrite: $path")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG FOS.close: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookFOSClose: $e") }
     }
 
     private fun hookFileOutput(lpparam: XC_LoadPackage.LoadPackageParam) {
