@@ -76,6 +76,7 @@ class MainHook : IXposedHookLoadPackage {
         hookCamera1(lpparam)
         hookCamera2(lpparam)
         hookImageReader(lpparam)
+        hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
     }
@@ -317,6 +318,56 @@ class MainHook : IXposedHookLoadPackage {
                 )
             } catch (_: Exception) {}
         }
+    }
+
+    private fun hookCaptureSession(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.hardware.camera2.impl.CameraCaptureSessionImpl", cl,
+                "capture",
+                android.hardware.camera2.CaptureRequest::class.java,
+                android.hardware.camera2.CameraCaptureSession.CaptureCallback::class.java,
+                Handler::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        try {
+                            // Write JPEG bytes of our bitmap into every nonPreviewSurface
+                            // that accepts JPEG (ImageReader surfaces for still capture)
+                            val stream = java.io.ByteArrayOutputStream()
+                            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, stream)
+                            val jpegBytes = stream.toByteArray()
+
+                            // Find the ImageReader surface and write via ImageWriter
+                            nonPreviewSurfaces.forEach { surf ->
+                                try {
+                                    if (android.os.Build.VERSION.SDK_INT >= 23) {
+                                        val writer = android.media.ImageWriter.newInstance(surf, 1)
+                                        val img    = writer.dequeueInputImage()
+                                        val planes = img.planes
+                                        if (planes.isNotEmpty()) {
+                                            val buf = planes[0].buffer
+                                            buf.put(jpegBytes, 0, minOf(jpegBytes.size, buf.remaining()))
+                                        }
+                                        writer.queueInputImage(img)
+                                        writer.close()
+                                    }
+                                } catch (e: Exception) {
+                                    XposedBridge.log("$TAG capture-IW: $e")
+                                }
+                            }
+                            // Cancel the real capture so hardware doesn't overwrite our frame
+                            param.setResult(0)
+                            XposedBridge.log("$TAG still capture intercepted — image injected")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG capture hook: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
     }
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
