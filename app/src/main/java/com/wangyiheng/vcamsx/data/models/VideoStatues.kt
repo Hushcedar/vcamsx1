@@ -7,5 +7,7 @@ data class VideoStatues(
     val codecType: Boolean = false,
     val isLiveStreamingEnabled: Boolean = false,
     val liveURL: String = "",
-    val RealsceneEnabled: Boolean = false
+    val RealsceneEnabled: Boolean = false,
+    val isImageEnabled: Boolean = false,
+    val imagePath: String = ""
 )
