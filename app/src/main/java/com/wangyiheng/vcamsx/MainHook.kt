@@ -77,6 +77,7 @@ class MainHook : IXposedHookLoadPackage {
         hookCamera2(lpparam)
         hookImageReader(lpparam)
         hookImageAvailable(lpparam)
+        hookUpdateTexImage(lpparam)
         hookCaptureSession(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
@@ -369,6 +370,50 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Exception) { XposedBridge.log("$TAG capture hook setup: $e") }
+    }
+
+    private fun hookUpdateTexImage(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.graphics.SurfaceTexture", cl,
+                "updateTexImage",
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        val st  = param.thisObject as? android.graphics.SurfaceTexture ?: return
+                        // Only intercept Telegram's own preview SurfaceTexture
+                        // not our virtual one (which we already own)
+                        if (st == c2VirtualSurfaceTexture) return
+                        if (st == fake_SurfaceTexture)     return
+                        if (st == c1FakeTexture)           return
+                        try {
+                            // Push our bitmap to the virtual surface right now
+                            // so when Telegram reads the frame it gets our image
+                            val virt = c2_virtual_surface?.takeIf { it.isValid } ?: return
+                            val canvas = virt.lockCanvas(null)
+                            canvas.drawBitmap(
+                                bmp, null,
+                                android.graphics.RectF(
+                                    0f, 0f,
+                                    canvas.width.toFloat(),
+                                    canvas.height.toFloat()
+                                ), null
+                            )
+                            virt.unlockCanvasAndPost(canvas)
+                            // Now redirect this updateTexImage call to our virtual ST
+                            // so Telegram reads our frame instead of real camera
+                            c2VirtualSurfaceTexture?.updateTexImage()
+                            param.setResult(null)
+                            XposedBridge.log("$TAG updateTexImage intercepted — bitmap pushed")
+                        } catch (e: Exception) {
+                            XposedBridge.log("$TAG updateTexImage: $e")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) { XposedBridge.log("$TAG hookUpdateTexImage: $e") }
     }
 
     private fun hookImageAvailable(lpparam: XC_LoadPackage.LoadPackageParam) {
