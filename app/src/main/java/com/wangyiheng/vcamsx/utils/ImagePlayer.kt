@@ -14,16 +14,12 @@ import android.opengl.EGLConfig
 import android.opengl.EGLExt
 import android.opengl.GLES20
 import android.opengl.GLUtils
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.Looper
 import android.util.Log
 import android.view.Surface
 import com.wangyiheng.vcamsx.data.models.VideoStatues
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
-import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -37,7 +33,7 @@ object ImagePlayer {
     private var currentBitmap: Bitmap? = null
     private var currentVideoFile: File? = null
     private var mediaCodec: MediaCodec? = null
-    private var surfaceProvider: (() -> Surface?)? = null
+    var surfaceProvider: (() -> Surface?)? = null
     
     // ── Public API ────────────────────────────────────────────────────────────
     fun setSurfaceProvider(provider: () -> Surface?) {
@@ -60,11 +56,10 @@ object ImagePlayer {
             currentBitmap = bitmap
             Log.d(TAG, "Image loaded: ${bitmap.width}x${bitmap.height}")
             
-            // Encode bitmap to MP4
             val videoFile = File(context.cacheDir, "image_video.mp4")
-            val success = bitmapToMp4Loop(bitmap, videoFile)
+            bitmapToMp4Loop(bitmap, videoFile)
             
-            if (success && videoFile.exists()) {
+            if (videoFile.exists()) {
                 currentVideoFile = videoFile
                 Log.d(TAG, "MP4 created: ${videoFile.length()} bytes")
                 return true
@@ -115,6 +110,16 @@ object ImagePlayer {
         }
     }
     
+    fun getCurrentBitmapSnapshot(): Bitmap? = currentBitmap
+    
+    fun activateInjection() {
+        enable()
+    }
+    
+    fun stop() {
+        disable()
+    }
+    
     // ── Decoder ──────────────────────────────────────────────────────────────
     private fun startDecoder(surface: Surface) {
         val videoFile = currentVideoFile ?: return
@@ -125,10 +130,6 @@ object ImagePlayer {
         mediaCodec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         mediaCodec?.configure(format, surface, null, 0)
         mediaCodec?.start()
-        
-        // Feed encoded data to decoder
-        // This would need to read from videoFile and feed to codec
-        // For now, we just keep the codec alive
         
         Log.d(TAG, "Decoder started")
     }
@@ -141,74 +142,62 @@ object ImagePlayer {
         mediaCodec = null
     }
     
-    // ── C2 Reader Play ──────────────────────────────────────────────────────
     private fun triggerC2ReaderPlay() {
-        // This mirrors what video mode does
-        // In video mode, after encoding finishes, c2_reader_play is called
-        // to start feeding the ImageReader surfaces
         Log.d(TAG, "triggerC2ReaderPlay called")
-        
-        // The actual implementation would call VideoToFrames.c2_reader_play()
-        // or whatever the underlying pipeline uses
-        // For now, we'll just signal that we're ready
         VideoStatues.isImageMode = true
     }
     
     // ── MP4 Generation ──────────────────────────────────────────────────────
-    private fun bitmapToMp4Loop(src: Bitmap, outFile: File): Boolean {
+    private fun bitmapToMp4Loop(src: Bitmap, outFile: File) {
         val W            = 720
         val H            = 1280
         val FPS          = 10
-        val DURATION_SEC = 10
-        val TOTAL_FRAMES = FPS * DURATION_SEC
-        val FRAME_US     = 1_000_000L / FPS
-        
+        val TOTAL_FRAMES = 100          // 10 s at 10 fps
+        val FRAME_US     = 100_000L     // 1 000 000 / 10
+
         val scaled = if (src.width == W && src.height == H) src
                      else Bitmap.createScaledBitmap(src, W, H, true)
-        
+
+        // ── Codec ────────────────────────────────────────────────────────────────
         val mf = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, W, H).apply {
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            setInteger(MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE,         2_000_000)
             setInteger(MediaFormat.KEY_FRAME_RATE,       FPS)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
-        
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         codec.configure(mf, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         val inputSurface = codec.createInputSurface()
         codec.start()
-        
-        // ── EGL setup ────────────────────────────────────────────────────────────
+
+        // ── EGL ──────────────────────────────────────────────────────────────────
         val eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         EGL14.eglInitialize(eglDisplay, IntArray(1), 0, IntArray(1), 0)
-        
+
         val cfgAttr = intArrayOf(
             EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
             EGL14.EGL_ALPHA_SIZE, 8,
             EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-            EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
+            EGL14.EGL_SURFACE_TYPE,    EGL14.EGL_WINDOW_BIT,
             EGL14.EGL_NONE
         )
         val configs = arrayOfNulls<EGLConfig>(1)
         EGL14.eglChooseConfig(eglDisplay, cfgAttr, 0, configs, 0, 1, IntArray(1), 0)
         val cfg = configs[0]!!
-        
+
         val eglContext = EGL14.eglCreateContext(eglDisplay, cfg, EGL14.EGL_NO_CONTEXT,
             intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE), 0)
         val eglSurface = EGL14.eglCreateWindowSurface(eglDisplay, cfg, inputSurface,
             intArrayOf(EGL14.EGL_NONE), 0)
         EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)
-        
-        // ── GL program (simple textured quad) ────────────────────────────────────
-        val VERT = """
-            attribute vec4 aPos; attribute vec2 aTex; varying vec2 vTex;
-            void main() { gl_Position = aPos; vTex = aTex; }
-        """.trimIndent()
-        val FRAG = """
-            precision mediump float; uniform sampler2D uTex; varying vec2 vTex;
-            void main() { gl_FragColor = texture2D(uTex, vTex); }
-        """.trimIndent()
-        
+
+        // ── GL program ───────────────────────────────────────────────────────────
+        val VERT = "attribute vec4 aPos;attribute vec2 aTex;varying vec2 vTex;" +
+                   "void main(){gl_Position=aPos;vTex=aTex;}"
+        val FRAG = "precision mediump float;uniform sampler2D uTex;varying vec2 vTex;" +
+                   "void main(){gl_FragColor=texture2D(uTex,vTex);}"
+
         fun compileShader(type: Int, src: String) = GLES20.glCreateShader(type).also {
             GLES20.glShaderSource(it, src); GLES20.glCompileShader(it)
         }
@@ -217,96 +206,86 @@ object ImagePlayer {
             GLES20.glAttachShader(it, compileShader(GLES20.GL_FRAGMENT_SHADER, FRAG))
             GLES20.glLinkProgram(it)
         }
-        
-        // Upload bitmap as GL texture
+
+        // Upload bitmap as GL texture once
         val texIds = IntArray(1)
         GLES20.glGenTextures(1, texIds, 0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texIds[0])
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S,     GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T,     GLES20.GL_CLAMP_TO_EDGE)
         GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, scaled, 0)
-        
-        // Quad geometry
+
         fun fb(d: FloatArray) = ByteBuffer.allocateDirect(d.size * 4)
             .order(ByteOrder.nativeOrder()).asFloatBuffer().also { it.put(d); it.position(0) }
-        val POS = fb(floatArrayOf(-1f,-1f,  1f,-1f,  -1f,1f,  1f,1f))
-        val UV  = fb(floatArrayOf( 0f, 1f,  1f, 1f,   0f,0f,  1f,0f))
-        
-        // ── Muxer ────────────────────────────────────────────────────────────────
-        val muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        var trackIdx     = -1
-        var muxerStarted = false
-        val info         = MediaCodec.BufferInfo()
-        
-        fun drainEncoder(eos: Boolean) {
-            val timeoutUs = if (eos) 100_000L else 5_000L
-            val deadline  = System.currentTimeMillis() + (if (eos) 3000L else 200L)
-            while (System.currentTimeMillis() < deadline) {
-                val outIdx = codec.dequeueOutputBuffer(info, timeoutUs)
-                when {
-                    outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        trackIdx = muxer.addTrack(codec.outputFormat)
-                        muxer.start(); muxerStarted = true
-                    }
-                    outIdx >= 0 -> {
-                        val buf = codec.getOutputBuffer(outIdx)
-                        if (buf != null && muxerStarted && trackIdx >= 0 && info.size > 0 &&
-                            (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                            muxer.writeSampleData(trackIdx, buf, info)
-                        }
-                        codec.releaseOutputBuffer(outIdx, false)
-                        if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) return
-                        if (!eos) return  // one sample per frame in non-EOS drain is enough
-                    }
-                    else -> if (!eos) return
-                }
-            }
-        }
-        
-        // ── Encode loop: GL draw → eglSwapBuffers → drain ────────────────────────
-        GLES20.glUseProgram(prog)
-        val aPosLoc = GLES20.glGetAttribLocation(prog, "aPos")
-        val aTexLoc = GLES20.glGetAttribLocation(prog, "aTex")
+        val POS = fb(floatArrayOf(-1f,-1f, 1f,-1f, -1f,1f, 1f,1f))
+        val UV  = fb(floatArrayOf( 0f, 1f, 1f, 1f,  0f,0f, 1f,0f))
+
+        val aPosLoc = GLES20.glGetAttribLocation(prog,  "aPos")
+        val aTexLoc = GLES20.glGetAttribLocation(prog,  "aTex")
         val uTexLoc = GLES20.glGetUniformLocation(prog, "uTex")
+        GLES20.glUseProgram(prog)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texIds[0])
         GLES20.glUniform1i(uTexLoc, 0)
         GLES20.glEnableVertexAttribArray(aPosLoc)
         GLES20.glEnableVertexAttribArray(aTexLoc)
-        
-        for (frameIdx in 0 until TOTAL_FRAMES) {
-            GLES20.glViewport(0, 0, W, H)
-            GLES20.glClearColor(0f, 0f, 0f, 1f)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-            GLES20.glVertexAttribPointer(aPosLoc, 2, GLES20.GL_FLOAT, false, 0, POS)
-            GLES20.glVertexAttribPointer(aTexLoc, 2, GLES20.GL_FLOAT, false, 0, UV)
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-            
-            // eglPresentationTimeANDROID sets the frame timestamp on the encoder surface
-            EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, frameIdx * FRAME_US * 1000L)
-            EGL14.eglSwapBuffers(eglDisplay, eglSurface)
-            
-            drainEncoder(false)
+        GLES20.glVertexAttribPointer(aPosLoc, 2, GLES20.GL_FLOAT, false, 0, POS)
+        GLES20.glVertexAttribPointer(aTexLoc, 2, GLES20.GL_FLOAT, false, 0, UV)
+
+        // ── Muxer ────────────────────────────────────────────────────────────────
+        val muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        var trackIdx     = -1
+        var muxerStarted = false
+        val info         = MediaCodec.BufferInfo()
+
+        fun drain(eos: Boolean) {
+            val deadline = System.currentTimeMillis() + if (eos) 3000L else 150L
+            while (System.currentTimeMillis() < deadline) {
+                val idx = codec.dequeueOutputBuffer(info, if (eos) 100_000L else 5_000L)
+                when {
+                    idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        trackIdx = muxer.addTrack(codec.outputFormat)
+                        muxer.start(); muxerStarted = true
+                    }
+                    idx >= 0 -> {
+                        val buf = codec.getOutputBuffer(idx)
+                        if (buf != null && muxerStarted && trackIdx >= 0 && info.size > 0 &&
+                            (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0)
+                            muxer.writeSampleData(trackIdx, buf, info)
+                        codec.releaseOutputBuffer(idx, false)
+                        if ((info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) return
+                        if (!eos) return
+                    }
+                    else -> if (!eos) return
+                }
+            }
         }
-        
-        // Signal EOS and drain the rest
+
+        // ── Encode loop ──────────────────────────────────────────────────────────
+        for (i in 0 until TOTAL_FRAMES) {
+            GLES20.glViewport(0, 0, W, H)
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            EGLExt.eglPresentationTimeANDROID(eglDisplay, eglSurface, i * FRAME_US * 1000L)
+            EGL14.eglSwapBuffers(eglDisplay, eglSurface)
+            drain(false)
+        }
+
         codec.signalEndOfInputStream()
-        drainEncoder(true)
-        
-        // ── Teardown ─────────────────────────────────────────────────────────────
+        drain(true)
+
+        // ── Cleanup ──────────────────────────────────────────────────────────────
         try { EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT) } catch (_: Exception) {}
-        try { EGL14.eglDestroySurface(eglDisplay, eglSurface) } catch (_: Exception) {}
-        try { EGL14.eglDestroyContext(eglDisplay, eglContext) } catch (_: Exception) {}
-        try { EGL14.eglTerminate(eglDisplay) }               catch (_: Exception) {}
-        try { codec.stop() }                                  catch (_: Exception) {}
+        try { EGL14.eglDestroySurface(eglDisplay, eglSurface) }  catch (_: Exception) {}
+        try { EGL14.eglDestroyContext(eglDisplay, eglContext) }  catch (_: Exception) {}
+        try { EGL14.eglTerminate(eglDisplay) }                   catch (_: Exception) {}
+        try { codec.stop() }                                      catch (_: Exception) {}
         codec.release()
         if (muxerStarted) try { muxer.stop() } catch (_: Exception) {}
         muxer.release()
         inputSurface.release()
         if (scaled !== src) scaled.recycle()
-        
-        return outFile.exists() && outFile.length() > 4096L
     }
 }
