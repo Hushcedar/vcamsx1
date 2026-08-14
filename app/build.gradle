@@ -69,7 +69,6 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.yhaolpz:FloatWindow:1.0.9'
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
 
     // AndroidX core
@@ -90,9 +89,10 @@ dependencies {
 
     // UI libs (same as original)
     implementation 'com.tbuonomo:dotsindicator:5.0'
+    implementation 'com.github.SimonMarquis:StateView:2.0.1'
+    implementation 'com.github.Justson:FloatingView:v4.1.2-androidx'
     implementation 'com.afollestad.material-dialogs:core:3.3.0'
     implementation 'com.afollestad.material-dialogs:input:3.3.0'
-    implementation 'com.github.nukc.stateview:library:3.3.0'
     implementation 'com.github.Ferfalk:SimpleSearchView:0.2.0'
     implementation 'com.github.Othershe:CornerLabelView:1.0.0'
     implementation 'org.osmdroid:osmdroid-android:6.1.13'
