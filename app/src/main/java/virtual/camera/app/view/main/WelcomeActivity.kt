@@ -11,11 +11,6 @@ import virtual.camera.app.view.list.ListViewModel
 
 class WelcomeActivity : AppCompatActivity() {
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent ?: return)
-        jump()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_welcome)
@@ -25,7 +20,7 @@ class WelcomeActivity : AppCompatActivity() {
                 jump()
             },
             3500
-        );
+        )
     }
 
     private fun jump() {
