@@ -35,6 +35,6 @@ ext {
     hackJarName       = "hack.jar"
     versionCode       = 350
     versionName       = "3.5.0"
-    masterPkg         = "virtual.camera.app"
+    masterPkg = "com.waxmoon.ma.gp"
     assistPkg         = "virtual.camera.app.assist"
 }
