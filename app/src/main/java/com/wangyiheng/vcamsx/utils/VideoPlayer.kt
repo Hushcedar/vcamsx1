@@ -34,7 +34,7 @@ object VideoPlayer {
             val writer = android.media.ImageWriter.newInstance(surface, 3)
             imageWriters[writer] = Triple(format, w, h)
             startWriterLoop()
-            Log.d(TAG, "IW registered fmt=$format ${w}x${h} imageActive=${ImagePlayer.isActive}")
+            Log.d(TAG, "IW registered fmt=$format ${w}x${h} imageActive=${ImagePlayer.isActive.value}")
         } catch (e: Exception) { Log.e(TAG, "addIW: ${e.message}") }
     }
 
@@ -43,7 +43,7 @@ object VideoPlayer {
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
                 // Image mode: generate NV21 from bitmap instead of video decoder
-                val frame = if (ImagePlayer.isActive.value) {
+                val frame = if (ImagePlayer.isActive.value.value) {
                     ImagePlayer.currentBitmapSnapshot()?.let { bmp ->
                         bitmapToNv21(bmp, 720, 1280)
                     } ?: VideoToFrames.data_buffer
@@ -104,7 +104,7 @@ object VideoPlayer {
     fun camera2Play() {
         MainHook.original_preview_Surface?.let { s ->
             if (s.isValid) {
-                if (ImagePlayer.isActive.value) {
+                if (ImagePlayer.isActive.value.value) {
                     val virt = MainHook.c2_virtual_surface
                     if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
                     else ImagePlayer.attachSurface(s)
@@ -115,7 +115,7 @@ object VideoPlayer {
     }
 
     fun c1_camera_play() {
-        if (ImagePlayer.isActive.value) {
+        if (ImagePlayer.isActive.value.value) {
             MainHook.original_c1_preview_SurfaceTexture?.let {
                 try { val s = Surface(it); if (s.isValid) ImagePlayer.attachC1Surface(s) } catch (_: Exception) {}
             }
@@ -148,7 +148,7 @@ object VideoPlayer {
         copyReaderSurface = surface
         // If image injection is active, NV21 is already in data_buffer.
         // Just ensure the writer loop is running — it will push frames automatically.
-        if (ImagePlayer.isActive) {
+        if (ImagePlayer.isActive.value) {
             startWriterLoop()
             Log.d(TAG, "c2_reader_play: image mode active, writer loop ensured")
             return
@@ -277,19 +277,19 @@ object VideoPlayer {
 
     fun rotate() {
         VideoControls.rotation.value = (VideoControls.rotation.value + 90) % 360
-        if (ImagePlayer.isActive.value) { ImagePlayer.rotate(); return }
+        if (ImagePlayer.isActive.value.value) { ImagePlayer.rotate(); return }
         activeTransformer?.also { it.rotationDeg = VideoControls.rotation.value; it.needsRedraw = true }
         restartDecoders()
     }
 
     fun flip() {
         VideoControls.isFlipped.value = !VideoControls.isFlipped.value
-        if (ImagePlayer.isActive.value) { ImagePlayer.flip(); return }
+        if (ImagePlayer.isActive.value.value) { ImagePlayer.flip(); return }
         activeTransformer?.also { it.flipH = VideoControls.isFlipped.value; it.needsRedraw = true }
     }
 
     fun adjustOffset(dx: Int, dy: Int) {
-        if (ImagePlayer.isActive.value) { ImagePlayer.adjustOffset(dx, dy); return }
+        if (ImagePlayer.isActive.value.value) { ImagePlayer.adjustOffset(dx, dy); return }
         try {
             val t = activeTransformer ?: return
             t.offsetX = (t.offsetX + dx * (2f / 1280f)).coerceIn(-1.5f, 1.5f)
@@ -299,7 +299,7 @@ object VideoPlayer {
     }
 
     fun zoomIn() {
-        if (ImagePlayer.isActive.value) { ImagePlayer.zoomIn(); return }
+        if (ImagePlayer.isActive.value.value) { ImagePlayer.zoomIn(); return }
         try {
             val s = (VideoControls.scale.value + 0.1f).coerceAtMost(3.0f)
             VideoControls.scale.value = s
@@ -308,7 +308,7 @@ object VideoPlayer {
     }
 
     fun zoomOut() {
-        if (ImagePlayer.isActive.value) { ImagePlayer.zoomOut(); return }
+        if (ImagePlayer.isActive.value.value) { ImagePlayer.zoomOut(); return }
         try {
             val s = (VideoControls.scale.value - 0.1f).coerceAtLeast(0.3f)
             VideoControls.scale.value = s
