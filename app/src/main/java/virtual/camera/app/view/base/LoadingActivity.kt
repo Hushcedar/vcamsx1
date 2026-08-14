@@ -1,37 +1,23 @@
 package virtual.camera.app.view.base
 
-import android.view.KeyEvent
-import com.roger.catloadinglibrary.CatLoadingView
-import virtual.camera.app.R
+import android.app.ProgressDialog
+import androidx.appcompat.app.AppCompatActivity
 
-abstract class LoadingActivity : BaseActivity() {
+open class LoadingActivity : AppCompatActivity() {
 
-    private lateinit var loadingView: CatLoadingView
-
+    private var loadingDialog: ProgressDialog? = null
 
     fun showLoading() {
-        if (!this::loadingView.isInitialized) {
-            loadingView = CatLoadingView()
-        }
-
-        if (!loadingView.isAdded) {
-            loadingView.setBackgroundColor(R.color.primary)
-            loadingView.show(supportFragmentManager, "")
-            supportFragmentManager.executePendingTransactions()
-            loadingView.setClickCancelAble(false)
-            loadingView.dialog?.setOnKeyListener { _, keyCode, _ ->
-                if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
-                    return@setOnKeyListener true
-                }
-                false
+        if (loadingDialog == null) {
+            loadingDialog = ProgressDialog(this).apply {
+                isIndeterminate = true
+                setCancelable(false)
             }
         }
+        if (!isFinishing) loadingDialog?.show()
     }
 
-
-    fun hideLoading() {
-        if (this::loadingView.isInitialized) {
-            loadingView.dismiss()
-        }
+    fun dismissLoading() {
+        loadingDialog?.dismiss()
     }
 }

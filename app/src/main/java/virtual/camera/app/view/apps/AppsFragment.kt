@@ -61,7 +61,7 @@ class AppsFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
 
-        viewBinding.stateView.showEmpty()
+        viewBinding.recyclerView?.visibility = android.view.View.GONE
 
         mAdapter =
             RVAdapter<AppInfo>(requireContext(), AppsAdapter()).bind(viewBinding.recyclerView)
@@ -196,16 +196,16 @@ class AppsFragment : Fragment() {
         }
     }
     private fun initData() {
-        viewBinding.stateView.showLoading()
+        viewBinding.recyclerView?.visibility = android.view.View.GONE
         viewModel.getInstalledApps(userID)
         viewModel.appsLiveData.observe(viewLifecycleOwner) {
 
             if (it != null) {
                 mAdapter.setItems(it)
                 if (it.isEmpty()) {
-                    viewBinding.stateView.showEmpty()
+                    viewBinding.recyclerView?.visibility = android.view.View.GONE
                 } else {
-                    viewBinding.stateView.showContent()
+                    viewBinding.recyclerView?.visibility = android.view.View.VISIBLE
                 }
             }
         }

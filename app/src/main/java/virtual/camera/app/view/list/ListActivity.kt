@@ -80,9 +80,9 @@ class ListActivity : BaseActivity() {
 
         viewModel.loadingLiveData.observe(this) {
             if (it) {
-                viewBinding.stateView.showLoading()
+                viewBinding.// loading
             } else {
-                viewBinding.stateView.showContent()
+                viewBinding.// content
 
             }
         }
@@ -93,10 +93,10 @@ class ListActivity : BaseActivity() {
                 viewBinding.searchView.setQuery("", false)
                 filterApp("")
                 if (it.isNotEmpty()) {
-                    viewBinding.stateView.showContent()
+                    viewBinding.// content
                     viewModel.previewInstalledList()
                 } else {
-                    viewBinding.stateView.showEmpty()
+                    viewBinding.// empty
                 }
             }
         }
