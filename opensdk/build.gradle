@@ -1,0 +1,66 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    compileSdk rootProject.ext.compileSdkVersion
+    namespace "com.hack.opensdk"
+
+    defaultConfig {
+        minSdk rootProject.ext.minSdkVersion
+        targetSdk rootProject.ext.targetSdkVersion
+        versionCode rootProject.ext.versionCode
+        versionName rootProject.ext.versionName
+
+        consumerProguardFiles "consumer-rules.pro"
+        buildConfigField "boolean", "localTest", "${rootProject.ext.localTest}"
+        buildConfigField "boolean", "isMasterPkg", "${rootProject.ext.isMasterPkg}"
+        buildConfigField "String", "ENGINE_JAR_NAME", "\"${rootProject.ext.hackJarName}\""
+        buildConfigField "String", "ASSIST_PACKAGE", "\"$rootProject.ext.assistPkg\""
+        buildConfigField "String", "MASTER_PACKAGE", "\"$rootProject.ext.masterPkg\""
+
+        if (!rootProject.ext.isMasterPkg) {
+            manifestPlaceholders = [masterPkg: "${rootProject.ext.masterPkg}"]
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java', "${projectDir}/build/src/main/java"]
+            if (rootProject.ext.isMasterPkg) {
+                manifest.srcFile 'src/main/AndroidManifest.xml'
+            } else {
+                manifest.srcFile 'src/main/AndroidManifest_assist.xml'
+            }
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+
+    buildTypes {
+        release { minifyEnabled false }
+        debug   { minifyEnabled false }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lintOptions {
+        abortOnError false
+        ignoreWarnings true
+        disable "UnusedResources", 'RestrictedApi'
+    }
+}
+
+afterEvaluate {
+    task generateConstantJavaFile(type: Copy) {
+        from "${projectDir}/resources/java/com/hack/opensdk/CmdConstants.java"
+        into "${projectDir}/build/src/main/java/com/hack/opensdk"
+    }
+    preBuild.dependsOn generateConstantJavaFile
+}
