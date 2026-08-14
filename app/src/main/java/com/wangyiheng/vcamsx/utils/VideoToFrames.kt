@@ -42,7 +42,7 @@ class VideoToFrames : Runnable {
         var dec: MediaCodec?     = null
         try {
             ext = MediaExtractor()
-            val ctx = try { Class.forName("com.wangyiheng.vcamsx.MainHook").getField("context").get(null) as? android.content.Context } catch(_:Exception){ null } ?:
+            val ctx = try { Class.forName("com.wangyiheng.vcamsx.MainHook").getField("context").get(null) as? android.content.Context } catch (_: Exception) { null }
             when {
                 path is Uri && ctx != null -> ext.setDataSource(ctx, path, null)
                 path is String             -> ext.setDataSource(path)
