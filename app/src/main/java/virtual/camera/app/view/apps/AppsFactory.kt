@@ -4,16 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import virtual.camera.app.data.AppsRepository
 
-/**
- *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/4/29 22:36
- */
-@Suppress("UNCHECKED_CAST")
-class AppsFactory(private val appsRepository: AppsRepository) : ViewModelProvider.NewInstanceFactory() {
-
-    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
-        return AppsViewModel(appsRepository) as T
+class AppsFactory(private val repository: AppsRepository) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return AppsViewModel(repository) as T
     }
 }

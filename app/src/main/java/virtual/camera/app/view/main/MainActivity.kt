@@ -39,7 +39,7 @@ class MainActivity : LoadingActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
-        initToolbar(viewBinding.toolbarLayout.toolbar, R.string.app_name)
+        // initToolbar suppressed // viewBinding.toolbarLayout.toolbar, R.string.app_name)
         initViewPager()
         initFab()
         initToolbarSubTitle()

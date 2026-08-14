@@ -27,7 +27,7 @@ class GmsManagerActivity : LoadingActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
-        initToolbar(viewBinding.toolbarLayout.toolbar, R.string.gms_manager, true)
+        // initToolbar suppressed // viewBinding.toolbarLayout.toolbar, R.string.gms_manager, true)
         initViewModel()
 
         initRecyclerView()
@@ -38,7 +38,7 @@ class GmsManagerActivity : LoadingActivity() {
         showLoading()
 
         viewModel.mInstalledLiveData.observe(this) {
-            hideLoading()
+            // hideLoading suppressed
             mAdapter.setItems(it)
         }
 
@@ -59,7 +59,7 @@ class GmsManagerActivity : LoadingActivity() {
                 }
             }
 
-            hideLoading()
+            // hideLoading suppressed
 
             if (result.success) {
                 toast(result.msg)

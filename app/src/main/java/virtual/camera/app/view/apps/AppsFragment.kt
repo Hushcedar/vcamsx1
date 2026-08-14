@@ -212,7 +212,7 @@ class AppsFragment : Fragment() {
 
         viewModel.resultLiveData.observe(viewLifecycleOwner) {
             if (!TextUtils.isEmpty(it)) {
-                hideLoading()
+                // hideLoading suppressed
                 requireContext().toast(it)
                 viewModel.getInstalledApps(userID)
                 scanUser()
@@ -222,7 +222,7 @@ class AppsFragment : Fragment() {
 
         viewModel.launchLiveData.observe(viewLifecycleOwner) {
             it?.run {
-                hideLoading()
+                // hideLoading suppressed
                 if (!it) {
                     toast(R.string.start_fail)
                 }
@@ -288,9 +288,9 @@ class AppsFragment : Fragment() {
     }
 
 
-    private fun hideLoading() {
+    private fun // hideLoading suppressed {
         if(requireActivity() is LoadingActivity){
-            (requireActivity() as LoadingActivity).hideLoading()
+            (requireActivity() as LoadingActivity).// hideLoading suppressed
         }
     }
 
