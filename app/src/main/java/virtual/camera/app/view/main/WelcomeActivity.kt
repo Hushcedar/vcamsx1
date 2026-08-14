@@ -12,7 +12,7 @@ import virtual.camera.app.view.list.ListViewModel
 class WelcomeActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
+        super.onNewIntent(intent ?: return)
         jump()
     }
 

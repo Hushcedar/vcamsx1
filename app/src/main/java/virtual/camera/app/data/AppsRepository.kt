@@ -120,7 +120,7 @@ class AppsRepository {
         var applicationList = mutableListOf<ApplicationInfo>()
         installedPkgs.forEach {
             var packageInfo = HackApi.getPackageInfo(it, userId, 0)
-            applicationList.add(packageInfo.applicationInfo)
+            packageInfo.applicationInfo?.let { applicationList.add(it) }
         }
 
         val appInfoList = mutableListOf<AppInfo>()

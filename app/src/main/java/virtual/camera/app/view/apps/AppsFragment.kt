@@ -288,9 +288,9 @@ class AppsFragment : Fragment() {
     }
 
 
-    private fun // hideLoading suppressed {
+    private fun hideLoading() {
         if(requireActivity() is LoadingActivity){
-            (requireActivity() as LoadingActivity).// hideLoading suppressed
+            (requireActivity() as LoadingActivity).hideLoading()
         }
     }
 
