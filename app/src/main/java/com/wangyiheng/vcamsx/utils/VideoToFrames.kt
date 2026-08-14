@@ -4,7 +4,6 @@ import android.media.*
 import android.net.Uri
 import android.util.Log
 import android.view.Surface
-import com.wangyiheng.vcamsx.MainHook
 
 class VideoToFrames : Runnable {
     companion object {
@@ -43,7 +42,7 @@ class VideoToFrames : Runnable {
         var dec: MediaCodec?     = null
         try {
             ext = MediaExtractor()
-            val ctx = MainHook.context
+            val ctx = try { Class.forName("com.wangyiheng.vcamsx.MainHook").getField("context").get(null) as? android.content.Context } catch(_:Exception){ null } ?:
             when {
                 path is Uri && ctx != null -> ext.setDataSource(ctx, path, null)
                 path is String             -> ext.setDataSource(path)
@@ -110,7 +109,7 @@ class VideoToFrames : Runnable {
                         dec.getOutputImage(out)?.use { img ->
                             if (outputImageFormat != null) {
                                 val nv21 = toNV21(img)
-                                data_buffer = nv21; MainHook.data_buffer = nv21
+                                data_buffer = nv21; try { Class.forName("com.wangyiheng.vcamsx.MainHook").getField("data_buffer").set(null, nv21) } catch(_:Exception){}
                             }
                         }
                     }
