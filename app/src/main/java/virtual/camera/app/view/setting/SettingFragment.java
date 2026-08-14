@@ -83,16 +83,13 @@ public class SettingFragment extends BaseFragment {
                 mPopupMenu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                     @Override
                     public boolean onMenuItemClick(MenuItem item) {
-                        switch (item.getItemId()) {
-                            case R.id.protect_method_disable_camera:
-                                onMethodTypeClick(MethodType.TYPE_DISABLE_CAMERA);
-                                break;
-                            case R.id.protect_method_local:
-                                onMethodTypeClick(MethodType.TYPE_LOCAL_VIDEO);
-                                break;
-                            case R.id.protect_method_network:
-                                onMethodTypeClick(MethodType.TYPE_NETWORK_VIDEO);
-                                break;
+                        int id = item.getItemId();
+                        if (id == R.id.protect_method_disable_camera) {
+                            onMethodTypeClick(MethodType.TYPE_DISABLE_CAMERA);
+                        } else if (id == R.id.protect_method_local) {
+                            onMethodTypeClick(MethodType.TYPE_LOCAL_VIDEO);
+                        } else if (id == R.id.protect_method_network) {
+                            onMethodTypeClick(MethodType.TYPE_NETWORK_VIDEO);
                         }
                         return true;
                     }
