@@ -89,8 +89,6 @@ dependencies {
 
     // UI libs (same as original)
     implementation 'com.tbuonomo:dotsindicator:5.0'
-    implementation 'com.github.SimonMarquis:StateView:2.0.1'
-    implementation 'com.github.Justson:FloatingView:v4.1.2-androidx'
     implementation 'com.afollestad.material-dialogs:core:3.3.0'
     implementation 'com.afollestad.material-dialogs:input:3.3.0'
     implementation 'com.github.Ferfalk:SimpleSearchView:0.2.0'
