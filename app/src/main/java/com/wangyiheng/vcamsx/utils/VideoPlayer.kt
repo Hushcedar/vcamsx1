@@ -34,6 +34,7 @@ object VideoPlayer {
             val writer = android.media.ImageWriter.newInstance(surface, 3)
             imageWriters[writer] = Triple(format, w, h)
             startWriterLoop()
+            Log.d(TAG, "IW registered fmt=$format ${w}x${h} imageActive=${ImagePlayer.isActive}")
         } catch (e: Exception) { Log.e(TAG, "addIW: ${e.message}") }
     }
 
@@ -145,6 +146,13 @@ object VideoPlayer {
     fun c2_reader_play(surface: Surface) {
         if (surface == copyReaderSurface) return
         copyReaderSurface = surface
+        // If image injection is active, NV21 is already in data_buffer.
+        // Just ensure the writer loop is running — it will push frames automatically.
+        if (ImagePlayer.isActive) {
+            startWriterLoop()
+            Log.d(TAG, "c2_reader_play: image mode active, writer loop ensured")
+            return
+        }
         c2_hw_decode_obj?.stopDecode()
         c2_hw_decode_obj = VideoToFrames()
         if (InfoProcesser.videoStatus?.RealsceneEnabled == true) { releaseMediaPlayer(); return }

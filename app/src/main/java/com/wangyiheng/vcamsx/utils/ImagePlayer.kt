@@ -256,6 +256,32 @@ object ImagePlayer {
         } catch (e: Exception) { Log.e(TAG, "startRenderer: ${e.message}", e) }
     }
 
+    /**
+     * Start pushing NV21 frames into all registered ImageWriter targets.
+     * This is what makes WhatsApp/Instagram/Telegram SEND the image —
+     * they read from ImageReader surfaces, not from the preview surface.
+     * VideoPlayer.startWriterLoop() already reads VideoToFrames.data_buffer,
+     * so we just need to ensure data_buffer has our NV21 and the loop is running.
+     */
+    private fun startImageWriterInjection() {
+        try {
+            // Trigger VideoPlayer's writer loop — it reads data_buffer which
+            // we already set to our NV21 in loadImage()
+            val vpClass = Class.forName("com.wangyiheng.vcamsx.utils.VideoPlayer")
+            val writerThread = vpClass.getDeclaredField("writerThread").also { it.isAccessible = true }
+            val thread = writerThread.get(null) as? Thread
+            if (thread == null || !thread.isAlive) {
+                // Loop not running — call startWriterLoop via reflection
+                val method = vpClass.getDeclaredMethod("startWriterLoop")
+                method.isAccessible = true
+                method.invoke(null)
+                android.util.Log.d("VCamSX-ImagePlayer", "ImageWriter loop started for image injection")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("VCamSX-ImagePlayer", "startImageWriterInjection: ${e.message}")
+        }
+    }
+
     private fun stopRenderer() {
         activeRenderer?.stop()
         activeRenderer = null
