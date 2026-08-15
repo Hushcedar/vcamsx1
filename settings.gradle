@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 rootProject.name = "VCamera"
 include ':app'
 include ':Bcore'
-project(':Bcore').projectDir = new File(rootDir, 'blackbox/Bcore')
