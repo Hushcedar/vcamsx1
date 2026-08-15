@@ -1,8 +1,4 @@
-APP_ABI := armeabi-v7a arm64-v8a
+APP_ABI := arm64-v8a armeabi-v7a
 APP_PLATFORM := android-24
-APP_STL := c++_static
-APP_OPTIM := release
-APP_THIN_ARCHIVE := true
-APP_PIE := true
-APP_SUPPORT_FLEXIBLE_PAGE_SIZES := true
-
+APP_STL := c++_shared
+APP_CPPFLAGS := -std=c++17
