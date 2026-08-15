@@ -1,59 +1,41 @@
 package com.hack.opensdk
 
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackbox.entity.pm.InstallOption
+import java.io.File
 
 /**
- * HackApi — BlackBoxCore Adapter
+ * HackApi — BlackBoxCore Adapter (corrected against real BPackageManager API)
  *
- * Drop-in replacement for the waxmoon HackApi.
- * Maps every call the VCamera UI shell makes to its BlackBoxCore equivalent.
- * Zero changes needed in the UI layer.
- *
- * HackApi call             → BlackBoxCore equivalent
- * ─────────────────────────────────────────────────
- * getAvailableUserSpace    → getUsers() → map to Int list
- * getInstalledPackages     → getInstalledPackages(flags, userId)
- * getPackageInfo           → getPackageInfo(pkg, flags, userId)
- * installPackageFromHost   → installPackageAsUser(path, userId, option)
- * uninstallPackage         → uninstallPackage(pkg, userId)
- * deletePackageData        → clearPackage(pkg, userId)
- * getLaunchIntentForPackage→ getLaunchIntent(pkg, userId)
- * startActivity            → startActivity(intent, userId)
+ * All 8 VCamera UI calls mapped to verified BlackBox method signatures.
  */
 object HackApi {
 
-    // ── User space ────────────────────────────────────────────────────────────
+    // Convenience accessor — avoids repeated null checks throughout
+    private fun pkgManager() = BlackBoxCore.get().bPackageManager
 
-    /**
-     * Returns list of available virtual user IDs (spaces).
-     * BlackBox supports multiple users — we expose their IDs as Int list.
-     * Matches the original: HackApi.getAvailableUserSpace() → List<Int>
-     */
+    // ── User spaces ───────────────────────────────────────────────────────────
+
+    /** HackApi.getAvailableUserSpace() → List<Int> */
     @JvmStatic
     fun getAvailableUserSpace(): List<Int> {
         return try {
             BlackBoxCore.get().users?.map { it.id } ?: listOf(0)
         } catch (e: Exception) {
-            listOf(0) // fallback to single user space
+            listOf(0)
         }
     }
 
     // ── Package queries ───────────────────────────────────────────────────────
 
-    /**
-     * Returns list of package names installed in the virtual space.
-     * Original: HackApi.getInstalledPackages(flags, userId) → List<String>
-     */
+    /** HackApi.getInstalledPackages(flags, userId) → List<String> */
     @JvmStatic
     fun getInstalledPackages(flags: Int, userId: Int): List<String> {
         return try {
-            BlackBoxCore.get()
-                .getInstalledPackages(flags, userId)
+            pkgManager()
+                ?.getInstalledPackages(flags, userId)
                 ?.map { it.packageName }
                 ?: emptyList()
         } catch (e: Exception) {
@@ -61,15 +43,11 @@ object HackApi {
         }
     }
 
-    /**
-     * Returns PackageInfo for a package in the virtual space.
-     * Original: HackApi.getPackageInfo(pkg, userId, flags) → PackageInfo
-     */
+    /** HackApi.getPackageInfo(packageName, userId, flags) → PackageInfo */
     @JvmStatic
     fun getPackageInfo(packageName: String, userId: Int, flags: Int): PackageInfo {
         return try {
-            BlackBoxCore.get().getPackageInfo(packageName, flags, userId)
-                ?: PackageInfo() // return empty rather than crash
+            pkgManager()?.getPackageInfo(packageName, flags, userId) ?: PackageInfo()
         } catch (e: Exception) {
             PackageInfo()
         }
@@ -78,79 +56,82 @@ object HackApi {
     // ── Install / uninstall ───────────────────────────────────────────────────
 
     /**
-     * Installs a host APK into the virtual space.
-     * Original: HackApi.installPackageFromHost(packageName, userId) → Boolean
+     * HackApi.installPackageFromHost(packageName, userId) → Boolean
      *
-     * In the waxmoon SDK this took a package name and cloned it from the host.
-     * BlackBox equivalent: installPackageAsUser with the real APK path.
+     * Resolves the real APK path from the host PackageManager,
+     * then calls BPackageManager.installPackageAsUser(file, option, userId).
      */
     @JvmStatic
     fun installPackageFromHost(packageName: String, userId: Int): Boolean {
         return try {
-            // Resolve real APK path from host PackageManager
-            val sourceDir = BlackBoxCore.getContext()
-                .packageManager
+            val context = BlackBoxCore.getContext()
+            val sourceDir = context.packageManager
                 .getApplicationInfo(packageName, 0)
                 .sourceDir
-
-            val option = InstallOption.installFromHost(packageName)
-            BlackBoxCore.get().installPackageAsUser(sourceDir, userId, option)
+            val apkFile = File(sourceDir)
+            val option = InstallOption()
+            val result = pkgManager()?.installPackageAsUser(apkFile, option, userId)
+            result?.isSuccess ?: false
         } catch (e: Exception) {
             false
         }
     }
 
     /**
-     * Uninstalls a package from the virtual space.
-     * Original: HackApi.uninstallPackage(packageName, userId) → Boolean
+     * HackApi.uninstallPackage(packageName, userId)
+     *
+     * BPackageManager has two uninstall signatures:
+     *   uninstallPackageAsUser(pkg, userId) — user-scoped
+     *   uninstallPackage(pkg)               — all users
+     * We use the user-scoped one to match waxmoon behaviour.
      */
     @JvmStatic
-    fun uninstallPackage(packageName: String, userId: Int): Boolean {
-        return try {
-            BlackBoxCore.get().uninstallPackage(packageName, userId)
+    fun uninstallPackage(packageName: String, userId: Int) {
+        try {
+            pkgManager()?.uninstallPackageAsUser(packageName, userId)
         } catch (e: Exception) {
-            false
+            // best effort
         }
     }
 
     /**
-     * Clears all data for a package in the virtual space.
-     * Original: HackApi.deletePackageData(packageName, userId)
+     * HackApi.deletePackageData(packageName, userId)
+     * → BPackageManager.clearPackage(packageName, userId)
      */
     @JvmStatic
     fun deletePackageData(packageName: String, userId: Int) {
         try {
-            BlackBoxCore.get().clearPackage(packageName, userId)
+            pkgManager()?.clearPackage(packageName, userId)
         } catch (e: Exception) {
-            // swallow — best effort clear
+            // best effort
         }
     }
 
     // ── Launch ────────────────────────────────────────────────────────────────
 
     /**
-     * Returns a launch intent for a virtual package.
-     * Original: HackApi.getLaunchIntentForPackage(packageName, userId) → Intent?
+     * HackApi.getLaunchIntentForPackage(packageName, userId) → Intent?
+     * → BPackageManager.getLaunchIntentForPackage(packageName, userId)
      */
     @JvmStatic
     fun getLaunchIntentForPackage(packageName: String, userId: Int): Intent? {
         return try {
-            BlackBoxCore.get().getLaunchIntent(packageName, userId)
+            pkgManager()?.getLaunchIntentForPackage(packageName, userId)
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * Starts an activity inside the virtual space.
-     * Original: HackApi.startActivity(intent, userId)
+     * HackApi.startActivity(intent, userId)
+     * → BlackBoxCore.get().startActivity(intent, userId)
      */
     @JvmStatic
     fun startActivity(intent: Intent, userId: Int) {
         try {
             BlackBoxCore.get().startActivity(intent, userId)
         } catch (e: Exception) {
-            // log only — don't crash caller
+            // log only
         }
     }
 }

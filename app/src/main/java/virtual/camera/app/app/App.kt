@@ -8,29 +8,35 @@ import top.niunaijun.blackbox.entity.ClientConfiguration
 /**
  * App — Application class
  *
- * Replaces the waxmoon HackApplication with BlackBoxCore initialization.
- * BlackBox mirrors the same attach → onCreate lifecycle.
+ * Bootstraps BlackBox using the verified API:
+ *   doAttachBaseContext(context, ClientConfiguration) — in attachBaseContext
+ *   doCreate()                                        — in onCreate
+ *   createUser(name)                                  — ensures User 0 exists
  */
 class App : Application() {
 
     companion object {
         private lateinit var instance: App
+
+        @JvmStatic
         fun getContext(): Context = instance.applicationContext
     }
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
-        // Initialize BlackBox engine — equivalent to HackApplication.attachBaseContext
-        BlackBoxCore.get().doAttachBaseContext(base, object : ClientConfiguration() {
-            override fun getHostPackageName(): String = base.packageName
-        })
+        BlackBoxCore.get().doAttachBaseContext(
+            base,
+            object : ClientConfiguration() {
+                override fun getHostPackageName(): String = base.packageName
+            }
+        )
     }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // Create default user space (User 0) if none exist
-        BlackBoxCore.get().onCreate()
+        // doCreate() completes engine initialisation after attachBaseContext
+        BlackBoxCore.get().doCreate()
         ensureDefaultUser()
     }
 
@@ -41,7 +47,7 @@ class App : Application() {
                 BlackBoxCore.get().createUser("User 0")
             }
         } catch (e: Exception) {
-            // Engine not ready yet — will be handled on first use
+            // Engine still warming up — first-use will handle it
         }
     }
 }
