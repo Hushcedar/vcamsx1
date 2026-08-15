@@ -25,16 +25,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK 29
+      - name: Install NDK 26d
         run: |
-          echo "y" | sdkmanager --install "ndk;29.0.13846066" --sdk_root=$ANDROID_SDK_ROOT
-          echo "NDK installed at: $ANDROID_SDK_ROOT/ndk/29.0.13846066"
+          echo "y" | sdkmanager --install "ndk;26.3.11579264" --sdk_root=$ANDROID_SDK_ROOT
+          echo "NDK installed at: $ANDROID_SDK_ROOT/ndk/26.3.11579264"
 
       - name: Download gradle-wrapper.jar
         run: |
           mkdir -p gradle/wrapper
           curl -L \
-            "https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+            "https://github.com/gradle/gradle/raw/v8.9.0/gradle/wrapper/gradle-wrapper.jar" \
             -o gradle/wrapper/gradle-wrapper.jar
 
       - name: Make gradlew executable
@@ -43,7 +43,7 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
         env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/29.0.13846066
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/26.3.11579264
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
