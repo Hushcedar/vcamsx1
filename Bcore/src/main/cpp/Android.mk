@@ -17,32 +17,23 @@ LOCAL_SRC_FILES := xdl/xdl.c \
 LOCAL_C_INCLUDES := $(LOCAL_PATH)
 include $(BUILD_STATIC_LIBRARY)
 
-
 include $(CLEAR_VARS)
-# Collect all source files in the current directory
-SRC1 := $(wildcard $(LOCAL_PATH)/*.cpp) $(wildcard $(LOCAL_PATH)/*.c)
-# Collect all source files in Utils/
-SRC2 := $(wildcard $(LOCAL_PATH)/Utils/*.cpp) $(wildcard $(LOCAL_PATH)/Utils/*.c)
-# Collect all source files in Hook/
-SRC3 := $(wildcard $(LOCAL_PATH)/Hook/*.cpp) $(wildcard $(LOCAL_PATH)/Hook/*.c)
-# Collect all source files in JniHook/
-SRC4 := $(wildcard $(LOCAL_PATH)/JniHook/*.cpp) $(wildcard $(LOCAL_PATH)/JniHook/*.c)
-
 LOCAL_MODULE := blackbox
 LOCAL_SRC_FILES := BoxCore.cpp \
-hidden_api.cpp \
-IO.cpp \
-Utils/elf_util.cpp \
-Hook/DexFileHook.cpp \
-Hook/FileSystemHook.cpp \
-Utils/VirtualSpoof.cpp \
-Utils/HexDump.cpp \
-Utils/AntiDetection.cpp \
-Hook/VMClassLoaderHook.cpp \
-Hook/UnixFileSystemHook.cpp \
-Hook/BinderHook.cpp \
-Hook/BaseHook.cpp \
-JniHook/JniHook.cpp
+    hidden_api.cpp \
+    IO.cpp \
+    Utils/elf_util.cpp \
+    Utils/VirtualSpoof.cpp \
+    Utils/HexDump.cpp \
+    Utils/AntiDetection.cpp \
+    Hook/BaseHook.cpp \
+    Hook/DexFileHook.cpp \
+    Hook/FileSystemHook.cpp \
+    Hook/RuntimeHook.cpp \
+    Hook/UnixFileSystemHook.cpp \
+    Hook/VMClassLoaderHook.cpp \
+    Hook/BinderHook.cpp \
+    JniHook/JniHook.cpp
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_CFLAGS += -Wno-error=format-security -fvisibility=hidden -ffunction-sections -fdata-sections -w -std=c++17
