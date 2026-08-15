@@ -1,0 +1,26 @@
+Signature-Version: 1.0
+Created-By: Android Gradle 7.4.2
+SHA-256-Digest-Manifest: mN4QHfg8pkbK8tUutmARf7eNfzTdVFlV5XY8SgoC11E=
+X-Android-APK-Signed: 2
+
+Name: AndroidManifest.xml
+SHA-256-Digest: qaV2pCjerzElC+AWecfHBEsn5iM70PjWYEicPd1ubQU=
+
+Name: META-INF/com/android/build/gradle/app-metadata.properties
+SHA-256-Digest: 0FOL+fr/8aZBEav/2wjEK6vVyEHG7SyqXRekTvG5poU=
+
+Name: assets/license.txt
+SHA-256-Digest: vb/EmdFFMdIEwqkvzbpa41p4ixgs/o0oUUc8aOr8VnI=
+
+Name: classes.dex
+SHA-256-Digest: F2UDeD1pOo8titr9DnVwxtWg3/cObqIYIfOVYDFzggw=
+
+Name: lib/arm64-v8a/libmultiapp.so
+SHA-256-Digest: iX6fFWbOx7yfgeV/ha2IJ+/kmYj3gbosqNb3uKenlFY=
+
+Name: lib/armeabi-v7a/libmultiapp.so
+SHA-256-Digest: YQ38/giCp0YqkVqFBjPHYbizOvkZcr+pQoXIxpGrynk=
+
+Name: resources.arsc
+SHA-256-Digest: WI7ra9otg9dpCR3VQ1+hGvOUf/iB0oxzAf1HWkM8CU4=
+

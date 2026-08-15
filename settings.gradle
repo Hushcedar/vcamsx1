@@ -2,3 +2,6 @@ include ':app'
 include ':opensdk'
 
 rootProject.name = "VCamera"
+
+include ':Bcore'
+project(':Bcore').projectDir = new File('blackbox/Bcore')

@@ -1,0 +1,7 @@
+Copyright (c) 2023-2050 WaxMoon
+Author: WaxMoon
+Project: https://github.com/WaxMoon/MultiApp
+Country: China
+Email: cocos_sh@sina.com
+AppId: GITHUB
+key: WMMYOPLTIU2q3k

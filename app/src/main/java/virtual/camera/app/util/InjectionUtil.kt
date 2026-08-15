@@ -2,35 +2,24 @@ package virtual.camera.app.util
 
 import virtual.camera.app.data.AppsRepository
 import virtual.camera.app.data.GmsRepository
-import virtual.camera.app.data.XpRepository
 import virtual.camera.app.view.apps.AppsFactory
 import virtual.camera.app.view.gms.GmsFactory
 import virtual.camera.app.view.list.ListFactory
 
 /**
+ * InjectionUtil — dependency wiring
  *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/4/29 22:38
+ * Same interface as the original — the UI fragments call these
+ * static factory getters. No UI changes needed.
  */
 object InjectionUtil {
 
-    private val appsRepository = AppsRepository()
+    fun getAppsFactory(): AppsFactory =
+        AppsFactory(AppsRepository())
 
-    private val xpRepository = XpRepository()
+    fun getListFactory(): ListFactory =
+        ListFactory(AppsRepository())
 
-    private val gmsRepository = GmsRepository()
-
-
-    fun getAppsFactory() : AppsFactory {
-        return AppsFactory(appsRepository)
-    }
-
-    fun getListFactory(): ListFactory {
-        return ListFactory(appsRepository)
-    }
-
-    fun getGmsFactory():GmsFactory{
-        return GmsFactory(gmsRepository)
-    }
+    fun getGmsFactory(): GmsFactory =
+        GmsFactory(GmsRepository())
 }
