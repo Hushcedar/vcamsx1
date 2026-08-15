@@ -1,7 +1,19 @@
-include ':app'
-include ':opensdk'
-
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://jitpack.io" }
+    }
+}
 rootProject.name = "VCamera"
-
+include ':app'
 include ':Bcore'
-project(':Bcore').projectDir = new File('blackbox/Bcore')
+project(':Bcore').projectDir = new File(rootDir, 'blackbox/Bcore')
