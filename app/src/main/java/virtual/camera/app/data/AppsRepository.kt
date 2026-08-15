@@ -107,44 +107,76 @@ class AppsRepository {
     }
 
 
+    
     fun getVmInstallList(userId: Int, appsLiveData: MutableLiveData<List<AppInfo>>) {
-        val sortListData =
-            AppManager.mRemarkSharedPreferences.getString("AppList$userId", "")
+        val sortListData = AppManager.mRemarkSharedPreferences.getString("AppList$userId", "")
         val sortList = sortListData?.split(",")
 
-        var installedPkgs = HackApi.getInstalledPackages(0, userId)
-        if(installedPkgs != null && installedPkgs.size > 0){
-            installedPkgs.remove("com.waxmoon.ma.gp");
-        }
+        val installedPkgs = HackApi.getInstalledPackages(0, userId)
+            .filterNot { it == "com.waxmoon.ma.gp" }
 
-        var applicationList = mutableListOf<ApplicationInfo>()
-        installedPkgs.forEach {
-            var packageInfo = HackApi.getPackageInfo(it, userId, 0)
+        val applicationList = mutableListOf<ApplicationInfo>()
+        installedPkgs.forEach { pkg ->
+            val packageInfo = HackApi.getPackageInfo(pkg, userId, 0)
             packageInfo.applicationInfo?.let { applicationList.add(it) }
         }
 
         val appInfoList = mutableListOf<AppInfo>()
         applicationList.also {
-            if (sortList.isNullOrEmpty()) {
-                return@also
-            }
+            if (sortList.isNullOrEmpty()) return@also
             it.sortWith(AppsSortComparator(sortList))
-
         }.forEach {
             val info = AppInfo(
-                it.loadLabel(App.getContext().getPackageManager()).toString(),
-                it.loadIcon(App.getContext().getPackageManager()),
+                it.loadLabel(App.getContext().packageManager).toString(),
+                it.loadIcon(App.getContext().packageManager),
                 it.packageName,
                 it.sourceDir,
                 isInstalledXpModule(it.packageName)
             )
-
             appInfoList.add(info)
         }
-
-
         appsLiveData.postValue(appInfoList)
     }
+
+    private fun isInstalledXpModule(packageName: String): Boolean {
+        return false
+    }
+
+    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String>) {
+        val success = HackApi.installPackageFromHost(source, userId)
+        Log.e("11111", "source:$source, installResult:$success")
+        if (success) {
+            updateAppSortList(userId, source, true)
+            resultLiveData.postValue(getString(R.string.install_success))
+        } else {
+            resultLiveData.postValue(getString(R.string.install_fail, "failed"))
+        }
+        scanUser()
+    }
+
+    fun unInstall(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
+        HackApi.uninstallPackage(packageName, userID)
+        updateAppSortList(userID, packageName, false)
+        scanUser()
+        resultLiveData.postValue(getString(R.string.uninstall_success))
+    }
+
+    fun launchApk(packageName: String, userId: Int, launchLiveData: MutableLiveData<Boolean>) {
+        val intent: Intent = HackApi.getLaunchIntentForPackage(packageName, userId)
+            ?: run {
+                launchLiveData.postValue(false)
+                return
+            }
+        intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        HackApi.startActivity(intent, userId)
+        launchLiveData.postValue(true)
+    }
+
+    fun clearApkData(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
+        HackApi.deletePackageData(packageName, userID)
+        resultLiveData.postValue(getString(R.string.clear_success))
+    }
+
 
     private fun isInstalledXpModule(packageName: String): Boolean {
         return false

@@ -3,16 +3,8 @@ package virtual.camera.app.app
 import android.app.Application
 import android.content.Context
 import top.niunaijun.blackbox.BlackBoxCore
-import top.niunaijun.blackbox.entity.ClientConfiguration
+import top.niunaijun.blackbox.app.configuration.ClientConfiguration
 
-/**
- * App — Application class
- *
- * Bootstraps BlackBox using the verified API:
- *   doAttachBaseContext(context, ClientConfiguration) — in attachBaseContext
- *   doCreate()                                        — in onCreate
- *   createUser(name)                                  — ensures User 0 exists
- */
 class App : Application() {
 
     companion object {
@@ -35,7 +27,6 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // doCreate() completes engine initialisation after attachBaseContext
         BlackBoxCore.get().doCreate()
         ensureDefaultUser()
     }
@@ -44,10 +35,10 @@ class App : Application() {
         try {
             val users = BlackBoxCore.get().users
             if (users.isNullOrEmpty()) {
-                BlackBoxCore.get().createUser("User 0")
+                BlackBoxCore.get().createUser(0)
             }
         } catch (e: Exception) {
-            // Engine still warming up — first-use will handle it
+            // Engine warming up — handled on first use
         }
     }
 }
