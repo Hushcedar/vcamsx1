@@ -1,72 +1,53 @@
+#include <jni.h>
+#include <string>
+#include <dlfcn.h>
+#include <unistd.h>
 #include <sys/system_properties.h>
 #include <cstring>
-#include "./xdl.h"
+#include <vector>
 #include <android/log.h>
-#include <dlfcn.h>
-#include "Dobby/dobby.h"
+#include <regex>
+#include "dobby.h"
+#include "xdl.h"
 
-/**
- * created by alex5402 on 4/9/21.
- * * ∧＿∧
- * (`･ω･∥
- * 丶　つ０
- * しーＪ
- * TFNQw5HgWUS33Ke1eNmSFTwoQySGU7XNsK (USDT TRC20)
- */
-#define LOG_TAG "VirtualSpoof"
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "VirtualSpoof", __VA_ARGS__)
 
-struct SpoofedProp {
-    const char* key;
-    const char* value;
-};
+using namespace std;
 
-SpoofedProp spoofed_props[] = {
-        {"ro.product.model", "Pixel 6"},
-        {"ro.product.brand", "google"},
-        {"ro.product.manufacturer", "Google"},
-        {"ro.product.device", "oriole"},
-        {"ro.build.fingerprint", "google/oriole/oriole:12/SP1A.210812.015/7679548:user/release-keys"},
-        {"ro.build.version.release", "12"},
-        {"ro.build.version.security_patch", "2022-01-05"},
-        {"ro.serialno", "1A2B3C4D5E6F"},
-        {"ro.hardware", "qcom"},
-        {"ro.boot.hardware", "qcom"},
-        {"ro.product.board", "lahaina"},
-        {"ro.product.cpu.abi", "arm64-v8a"},
-        {"ro.build.type", "user"},
-        {"ro.build.tags", "release-keys"},
-        {"ro.kernel.qemu", "0"},
-        {"ro.kernel.android.qemud", ""},
-        {"ro.hardware.egl", "adreno"},
-        {"ro.boot.qemu", "0"},
-    {nullptr, nullptr} // Sentinel
-};
+static int (*orig_system_property_get)(const char* name, char* value);
 
-
-static int (*orig_system_property_get)(const char *name, char *value) = nullptr;
-
-
-int my_system_property_get(const char *name, char *value) {
-    for (int i = 0; spoofed_props[i].key != nullptr; ++i) {
-        if (strcmp(name, spoofed_props[i].key) == 0) {
-            strcpy(value, spoofed_props[i].value);
-             LOGD("[spoof] %s = %s", name, value);
-            return strlen(value);
-        }
+static int my_system_property_get(const char* name, char* value) {
+    string propName(name);
+    if (propName == "ro.product.model") {
+        strcpy(value, "SM-G998B");
+        return strlen(value);
     }
-    if (orig_system_property_get) {
-        return orig_system_property_get(name, value);
+    if (propName == "ro.product.manufacturer") {
+        strcpy(value, "samsung");
+        return strlen(value);
     }
-    value[0] = '\0';
-    return 0;
+    if (propName == "ro.build.version.release") {
+        strcpy(value, "13");
+        return strlen(value);
+    }
+    if (propName == "ro.build.version.sdk") {
+        strcpy(value, "33");
+        return strlen(value);
+    }
+    if (propName == "ro.build.fingerprint") {
+        strcpy(value, "samsung/beyond1lte/beyond1:13/TP1A.220624.014/G973FXXU6HVJ3:user/release-keys");
+        return strlen(value);
+    }
+    return orig_system_property_get(name, value);
 }
 
 void install_property_get_hook() {
 #if defined(__aarch64__) || defined(__arm__)
-    // DobbyHook is only available for arm64-v8a and armeabi-v7a.
-    // x86 / x86_64 have no Dobby prebuilt — the hook is skipped at compile time.
     void* handle = xdl_open("libc.so", XDL_DEFAULT);
+    if (!handle) {
+        LOGD("xdl_open failed for libc.so");
+        return;
+    }
     void* target = xdl_dsym(handle, "__system_property_get", nullptr);
     if (target) {
         if (DobbyHook(target, (void*)my_system_property_get, (void**)&orig_system_property_get) == 0) {
@@ -74,18 +55,11 @@ void install_property_get_hook() {
         } else {
             LOGD("Spoof hook failed");
         }
-        xdl_close(handle);
     } else {
-        xdl_close(handle);
+        LOGD("__system_property_get not found");
     }
+    xdl_close(handle);
 #else
     LOGD("DobbyHook not available on this ABI — spoof skipped");
 #endif
-}
-
-// Initialization function to ensure our hook is loaded
-__attribute__((constructor)) void init_virtual_spoof()
-{
-    install_property_get_hook();
-    LOGD("VirtualSpoof: __system_property_get hook loaded");
 }

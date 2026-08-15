@@ -105,7 +105,7 @@
     <uses-permission android:name="ohos.permission.GET_BUNDLE_INFO"/>
     <uses-permission android:name="ohos.permission.GET_BUNDLE_INFO_PRIVILEGED"/>
 
-    <application
+    <application android:extractNativeLibs="true"
         android:name="virtual.camera.app.app.App"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

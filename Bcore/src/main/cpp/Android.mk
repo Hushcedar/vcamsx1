@@ -1,8 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-# ── Dobby prebuilt (arm64-v8a and armeabi-v7a ONLY) ──────────────────────────
-# x86 / x86_64 have no real Dobby lib. If they ever reach this makefile despite
-# Application.mk and Gradle abiFilters, the guard below prevents the link error.
+# Dobby only exists for arm64 + arm32 — guard prevents x86 linker errors
 ifeq ($(filter $(TARGET_ARCH_ABI), arm64-v8a armeabi-v7a),$(TARGET_ARCH_ABI))
 include $(CLEAR_VARS)
 LOCAL_MODULE    := libdobby
@@ -45,12 +43,13 @@ LOCAL_CFLAGS += -Wno-error=format-security -fvisibility=hidden -ffunction-sectio
 LOCAL_CPPFLAGS += -Wno-error=format-security -fvisibility=hidden -ffunction-sections -fdata-sections -w -Werror -fms-extensions
 LOCAL_LDFLAGS += -Wl,--gc-sections,--strip-all,-z,max-page-size=16384
 LOCAL_ARM_MODE := arm
-
 LOCAL_CPP_FEATURES := exceptions
+
 ifeq ($(filter $(TARGET_ARCH_ABI), arm64-v8a armeabi-v7a),$(TARGET_ARCH_ABI))
 LOCAL_STATIC_LIBRARIES := libdobby xdl
 else
 LOCAL_STATIC_LIBRARIES := xdl
 endif
+
 LOCAL_LDLIBS := -llog -landroid -lz
 include $(BUILD_SHARED_LIBRARY)

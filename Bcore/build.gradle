@@ -16,16 +16,12 @@ android {
         versionName "3.5.0"
         consumerProguardFiles "consumer-rules.pro"
 
-        // CRITICAL: restrict to only ABIs that have real Dobby libs.
-        // Without this Gradle feeds x86/x86_64 to ndkBuild despite Application.mk,
-        // causing "undefined symbol: DobbyHook" from the dummy empty libdobby.a.
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
         }
 
         externalNativeBuild {
             ndkBuild {
-                // Pass ABI list explicitly into ndkBuild as well
                 abiFilters "arm64-v8a", "armeabi-v7a"
             }
         }
@@ -36,12 +32,14 @@ android {
         debug   { minifyEnabled false }
     }
 
-    ndkVersion "29.0.13846066"
+    ndkVersion "26.3.11579264"
+
     externalNativeBuild {
         ndkBuild {
             path "src/main/cpp/Android.mk"
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
