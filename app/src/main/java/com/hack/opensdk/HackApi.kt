@@ -36,15 +36,13 @@ object HackApi {
     @JvmStatic
     fun installPackageFromHost(packageName: String, userId: Int): Boolean {
         return try {
-            // BlackBoxCore has a built-in installPackageAsUser that resolves
-            // the host APK path internally — use it directly
-            val hostPkgInfo = BlackBoxCore.getContext()
-                .packageManager
-                .getPackageInfo(packageName, 0)
-            val sourceDir = hostPkgInfo.applicationInfo.sourceDir
-            val result = BlackBoxCore.getBPackageManager()
+            val context = BlackBoxCore.getContext()
+            val sourceDir = context.packageManager
+                .getApplicationInfo(packageName, 0)
+                .sourceDir ?: return false
+            BlackBoxCore.getBPackageManager()
                 .installPackageAsUser(sourceDir, InstallOption.installBySystem(), userId)
-            result?.isSuccess ?: false
+            true
         } catch (e: PackageManager.NameNotFoundException) {
             false
         } catch (e: Exception) {
