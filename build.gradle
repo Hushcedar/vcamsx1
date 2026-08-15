@@ -1,0 +1,36 @@
+buildscript {
+    ext.kotlin_version = "2.0.20"
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://jitpack.io" }
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.7.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+// NOTE: allprojects{} repositories block intentionally removed.
+// Repos are declared in settings.gradle dependencyResolutionManagement
+// to satisfy RepositoriesMode.PREFER_SETTINGS and eliminate the warnings.
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+
+ext {
+    compileSdkVersion = 35
+    targetSdkVersion  = 35          // bump to 35 — Play Store requires ≥35 from Aug 2025
+    minSdkVersion     = 24
+    minSdk            = 24
+    versionCode       = 350
+    versionName       = "3.5.0"
+    blackReflection   = '1.1.2'
+    masterPkg         = "virtual.camera.app"
+    assistPkg         = "virtual.camera.app.assist"
+    isMasterPkg       = true
+    localTest         = false
+    hackJarName       = "hack.jar"
+    abiFilters        = "armeabi-v7a,arm64-v8a"
+}
