@@ -138,45 +138,6 @@ class AppsRepository {
         appsLiveData.postValue(appInfoList)
     }
 
-    private fun isInstalledXpModule(packageName: String): Boolean {
-        return false
-    }
-
-    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String>) {
-        val success = HackApi.installPackageFromHost(source, userId)
-        Log.e("11111", "source:$source, installResult:$success")
-        if (success) {
-            updateAppSortList(userId, source, true)
-            resultLiveData.postValue(getString(R.string.install_success))
-        } else {
-            resultLiveData.postValue(getString(R.string.install_fail, "failed"))
-        }
-        scanUser()
-    }
-
-    fun unInstall(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
-        HackApi.uninstallPackage(packageName, userID)
-        updateAppSortList(userID, packageName, false)
-        scanUser()
-        resultLiveData.postValue(getString(R.string.uninstall_success))
-    }
-
-    fun launchApk(packageName: String, userId: Int, launchLiveData: MutableLiveData<Boolean>) {
-        val intent: Intent = HackApi.getLaunchIntentForPackage(packageName, userId)
-            ?: run {
-                launchLiveData.postValue(false)
-                return
-            }
-        intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-        HackApi.startActivity(intent, userId)
-        launchLiveData.postValue(true)
-    }
-
-    fun clearApkData(packageName: String, userID: Int, resultLiveData: MutableLiveData<String>) {
-        HackApi.deletePackageData(packageName, userID)
-        resultLiveData.postValue(getString(R.string.clear_success))
-    }
-
 
     private fun isInstalledXpModule(packageName: String): Boolean {
         return false
