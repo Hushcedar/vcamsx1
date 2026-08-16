@@ -1,8 +1,11 @@
 package com.axiom.vcam
 
-import com.waxmoon.sdk.api.HackApplication
+import android.app.Application
+import android.util.Log
 
-class VCamApp : HackApplication() {
-    // HackApplication handles all MultiApp engine init internally.
-    // No extra code needed here — the engine boots in attachBaseContext.
+class VCamApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Log.d("VCamRevived", "App started")
+    }
 }
