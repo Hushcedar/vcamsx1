@@ -7,7 +7,7 @@ android {
     buildFeatures {
         buildConfig true
     }
-    namespace "com.axiom.vcam.assist"
+    namespace "org.waxmoon"
 
 
     defaultConfig {
