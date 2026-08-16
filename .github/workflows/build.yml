@@ -23,14 +23,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Download AARs
+      - name: Download BlackBox AAR
         run: |
-          mkdir -p app/libs hook/libs
-
-          curl -L --retry 3 --fail \
-            "https://github.com/rovo89/XposedBridge/releases/download/art/XposedBridge.jar" \
-            -o hook/libs/XposedBridge.jar
-
+          mkdir -p app/libs
           curl -L --retry 3 --fail \
             "https://github.com/FBlackBox/FBlackBox/releases/latest/download/BlackBox-release.aar" \
             -o app/libs/BlackBox-release.aar
