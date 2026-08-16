@@ -4,6 +4,9 @@ plugins {
 
 android {
     compileSdk rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig true
+    }
     namespace "com.axiom.vcam.opensdk"
 
     defaultConfig {
