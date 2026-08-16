@@ -1,0 +1,3 @@
+[submodule "multiapp"]
+	path = multiapp
+	url = https://github.com/WaxMoon/MultiApp.git

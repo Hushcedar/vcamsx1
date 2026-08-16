@@ -12,10 +12,11 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
-        maven { url 'https://raw.githubusercontent.com/FBlackBox/FBlackBox/master/repo' }
     }
 }
 
 rootProject.name = "VCamRevived"
 include ':app'
 include ':hook'
+include ':opensdk'
+include ':assist'
