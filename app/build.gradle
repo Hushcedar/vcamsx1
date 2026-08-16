@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    id 'kotlin-android'
 }
 
 android {
@@ -8,36 +8,37 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.axiom.vcam"
+        applicationId 'com.axiom.vcam'
         minSdk 28
         targetSdk 34
         versionCode 1
-        versionName "1.0.0"
+        versionName '1.0.0'
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
     }
 
     buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
+        release { minifyEnabled false; signingConfig signingConfigs.debug }
+        debug   { minifyEnabled false }
     }
+
+    buildFeatures { compose true }
+    composeOptions { kotlinCompilerExtensionVersion '1.5.8' }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = '17'
+    kotlinOptions { jvmTarget = '17' }
+
+    packagingOptions {
+        resources { excludes += '/META-INF/{AL2.0,LGPL2.1}' }
+        pickFirst '**/libc++_shared.so'
     }
-    buildFeatures {
-        compose true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.5.8'
-    }
+
+    lintOptions { abortOnError false }
 }
 
 dependencies {
-    // ── Compose ──────────────────────────────────────────────────────────────
     implementation platform('androidx.compose:compose-bom:2024.02.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-tooling-preview'
@@ -48,15 +49,11 @@ dependencies {
     implementation 'androidx.navigation:navigation-compose:2.7.6'
     debugImplementation 'androidx.compose.ui:ui-tooling'
 
-    // ── Core ─────────────────────────────────────────────────────────────────
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
-    // ── BlackBox ─────────────────────────────────────────────────────────────
-    implementation 'io.github.fblackbox:blackbox:3.3.6'
-
-    // ── Hook module ───────────────────────────────────────────────────────────
+    implementation files('libs/BlackBox-release.aar')
     implementation project(':hook')
 }
