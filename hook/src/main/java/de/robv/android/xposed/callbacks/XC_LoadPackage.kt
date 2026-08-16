@@ -1,4 +1,4 @@
-package de.robv.android.xposed
+package de.robv.android.xposed.callbacks
 
 class XC_LoadPackage {
     class LoadPackageParam {
