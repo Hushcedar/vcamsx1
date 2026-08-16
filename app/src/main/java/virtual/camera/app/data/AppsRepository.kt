@@ -28,7 +28,6 @@ class AppsRepository {
             for (installedApplication in installedApplications) {
                 val file = File(installedApplication.sourceDir)
                 if ((installedApplication.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
-                if (!AbiUtils.isSupport(file)) continue
                 val isXpModule = false
                 val info = AppInfo(
                     installedApplication.loadLabel(App.getContext().getPackageManager()).toString(),
