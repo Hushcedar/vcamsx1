@@ -4,6 +4,7 @@ plugins {
 
 android {
     compileSdk rootProject.ext.compileSdkVersion
+    namespace "com.axiom.vcam.opensdk"
 
     defaultConfig {
         minSdk rootProject.ext.minSdkVersion
