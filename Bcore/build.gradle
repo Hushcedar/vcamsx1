@@ -6,7 +6,6 @@ android {
 
     buildFeatures {
         aidl true
-        prefab true
         buildConfig true
     }
 
@@ -25,22 +24,13 @@ android {
         debug   { minifyEnabled false }
     }
 
-    externalNativeBuild {
-        ndkBuild {
-            path 'src/main/cpp/Android.mk'
-        }
-    }
-    ndkVersion "29.0.13846066"
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 
     packagingOptions {
-        jniLibs {
-            useLegacyPackaging true
-        }
+        jniLibs { useLegacyPackaging true }
     }
 
     lintOptions {
