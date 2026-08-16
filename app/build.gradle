@@ -58,6 +58,5 @@ dependencies {
 
     // WaxMoon MultiApp engine — compiled from source
     implementation project(':opensdk')
-    implementation project(':assist')
     implementation project(':hook')
 }
