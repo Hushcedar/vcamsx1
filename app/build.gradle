@@ -1,61 +1,38 @@
 plugins {
     id 'com.android.application'
-    id 'kotlin-android'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
-    namespace         rootProject.ext.package_name
-    compileSdk        rootProject.ext.compile_sdk
+    namespace 'com.axiom.vcam'
+    compileSdk 34
 
     defaultConfig {
-        applicationId   rootProject.ext.package_name
-        minSdk          rootProject.ext.min_sdk
-        targetSdk       rootProject.ext.target_sdk
-        versionCode     rootProject.ext.version_code
-        versionName     rootProject.ext.version_name
-
-        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
+        applicationId "com.axiom.vcam"
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
     }
 
     buildTypes {
         release {
-            minifyEnabled   false
-            signingConfig   signingConfigs.debug
-        }
-        debug {
-            minifyEnabled   false
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
-    buildFeatures {
-        compose true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion rootProject.ext.compose_compiler
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    packagingOptions {
-        resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
-        }
-        // BlackBox ships its own libc++_shared — keep one copy
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libdexjni.so'
+    buildFeatures {
+        compose true
     }
-
-    lintOptions {
-        abortOnError false
-        checkReleaseBuilds false
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.8'
     }
 }
 
@@ -71,20 +48,15 @@ dependencies {
     implementation 'androidx.navigation:navigation-compose:2.7.6'
     debugImplementation 'androidx.compose.ui:ui-tooling'
 
-    // ── Core AndroidX ────────────────────────────────────────────────────────
+    // ── Core ─────────────────────────────────────────────────────────────────
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
-    // ── BlackBox container (FBlackBox — works Android 9-15) ──────────────────
-    // NOTE: If the maven repo AAR is unavailable at build time, download
-    // BlackBox-release.aar from https://github.com/FBlackBox/FBlackBox/releases
-    // and drop into app/libs/ — the fileTree line below picks it up automatically.
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
-    // Primary maven pull:
+    // ── BlackBox ─────────────────────────────────────────────────────────────
     implementation 'io.github.fblackbox:blackbox:3.3.6'
 
-    // ── Hook module (sibling module — camera injection logic) ────────────────
+    // ── Hook module ───────────────────────────────────────────────────────────
     implementation project(':hook')
 }
