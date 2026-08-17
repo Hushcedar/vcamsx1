@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#FFFFFF">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+        <TextView android:id="@+id/vcam_title"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="16sp" android:textStyle="bold" android:textColor="#111111"
+            android:paddingBottom="16dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Camera Mode" android:textSize="13sp" android:textColor="#555555"
+            android:paddingBottom="4dp"/>
+        <Spinner android:id="@+id/vcam_spinner_method"
+            android:layout_width="match_parent" android:layout_height="48dp"/>
+        <LinearLayout android:id="@+id/vcam_layout_network"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:paddingTop="12dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Stream URL (RTSP / HLS / DASH / HTTP)"
+                android:textSize="12sp" android:textColor="#777777"/>
+            <EditText android:id="@+id/vcam_edit_url"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:hint="rtsp://192.168.x.x:8554/stream"
+                android:inputType="textUri" android:singleLine="true"/>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/vcam_layout_video"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:paddingTop="12dp">
+            <Button android:id="@+id/vcam_btn_pick_video"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:text="Choose Video File"/>
+            <TextView android:id="@+id/vcam_tv_video_path"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="No video selected" android:textSize="11sp"
+                android:textColor="#999999" android:paddingTop="4dp"/>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/vcam_layout_picture"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:paddingTop="12dp">
+            <Button android:id="@+id/vcam_btn_pick_picture"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:text="Choose Picture"/>
+            <TextView android:id="@+id/vcam_tv_pic_path"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="No picture selected" android:textSize="11sp"
+                android:textColor="#999999" android:paddingTop="4dp"/>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:paddingTop="14dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Enable Audio" android:textSize="14sp"/>
+            <Switch android:id="@+id/vcam_switch_audio"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        </LinearLayout>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Size must match target app or you get black screen"
+            android:textSize="11sp" android:textColor="#E53935"
+            android:paddingTop="14dp" android:paddingBottom="4dp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText android:id="@+id/vcam_edit_width"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:hint="Width" android:text="1280"
+                android:inputType="number"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text=" x " android:paddingTop="10dp"/>
+            <EditText android:id="@+id/vcam_edit_height"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:hint="Height" android:text="720"
+                android:inputType="number"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="  @" android:paddingTop="10dp"/>
+            <EditText android:id="@+id/vcam_edit_fps"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="0.7" android:hint="FPS" android:text="30"
+                android:inputType="number"/>
+        </LinearLayout>
+        <Button android:id="@+id/vcam_btn_save"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:text="Save" android:layout_marginTop="18dp"
+            android:backgroundTint="#1565C0" android:textColor="@android:color/white"/>
+    </LinearLayout>
+</ScrollView>
