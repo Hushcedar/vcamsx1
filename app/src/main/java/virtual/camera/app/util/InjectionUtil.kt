@@ -1,25 +1,19 @@
 package virtual.camera.app.util
 
-import virtual.camera.app.data.AppsRepository
-import virtual.camera.app.data.GmsRepository
+import android.app.Application
+import virtual.camera.app.app.App
 import virtual.camera.app.view.apps.AppsFactory
 import virtual.camera.app.view.gms.GmsFactory
 import virtual.camera.app.view.list.ListFactory
 
-/**
- * InjectionUtil — dependency wiring
- *
- * Same interface as the original — the UI fragments call these
- * static factory getters. No UI changes needed.
- */
 object InjectionUtil {
 
     fun getAppsFactory(): AppsFactory =
-        AppsFactory(AppsRepository())
+        AppsFactory(App.getContext().applicationContext as Application)
 
     fun getListFactory(): ListFactory =
-        ListFactory(AppsRepository())
+        ListFactory(App.getContext().applicationContext as Application)
 
     fun getGmsFactory(): GmsFactory =
-        GmsFactory(GmsRepository())
+        GmsFactory(App.getContext().applicationContext as Application)
 }

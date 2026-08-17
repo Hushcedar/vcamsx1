@@ -27,6 +27,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        AppManager.init(this)
         BlackBoxCore.get().doCreate()
         ensureDefaultUser()
     }
@@ -38,7 +39,7 @@ class App : Application() {
                 BlackBoxCore.get().createUser(0)
             }
         } catch (e: Exception) {
-            // Engine warming up — handled on first use
+            // engine warming up
         }
     }
 }

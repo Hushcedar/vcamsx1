@@ -14,10 +14,11 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppsRepository()
 
-    val loadingLiveData   = MutableLiveData<Boolean>()
-    val appsLiveData      = MutableLiveData<List<InstalledAppBean>>()
-    val vmAppsLiveData    = MutableLiveData<List<AppInfo>>()
-    val resultLiveData    = MutableLiveData<String>()
+    val loadingLiveData  = MutableLiveData<Boolean>()
+    val appsLiveData     = MutableLiveData<List<InstalledAppBean>>()
+    val vmAppsLiveData   = MutableLiveData<List<AppInfo>>()
+    val resultLiveData   = MutableLiveData<String>()
+    val launchLiveData   = MutableLiveData<Boolean>()
 
     fun getInstalledAppList(userID: Int) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -34,30 +35,39 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
     fun installApk(source: String, userId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             loadingLiveData.postValue(true)
-            repository.installApk(source, userId, resultLiveData)
-            loadingLiveData.postValue(false)  // FIX: always stop loading
+            try {
+                repository.installApk(source, userId, resultLiveData)
+            } finally {
+                loadingLiveData.postValue(false)
+            }
         }
     }
 
     fun unInstall(packageName: String, userID: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             loadingLiveData.postValue(true)
-            repository.unInstall(packageName, userID, resultLiveData)
-            loadingLiveData.postValue(false)  // FIX: always stop loading
+            try {
+                repository.unInstall(packageName, userID, resultLiveData)
+            } finally {
+                loadingLiveData.postValue(false)
+            }
         }
     }
 
     fun launchApk(packageName: String, userId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.launchApk(packageName, userId, MutableLiveData())
+            repository.launchApk(packageName, userId, launchLiveData)
         }
     }
 
     fun clearApkData(packageName: String, userID: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             loadingLiveData.postValue(true)
-            repository.clearApkData(packageName, userID, resultLiveData)
-            loadingLiveData.postValue(false)
+            try {
+                repository.clearApkData(packageName, userID, resultLiveData)
+            } finally {
+                loadingLiveData.postValue(false)
+            }
         }
     }
 
