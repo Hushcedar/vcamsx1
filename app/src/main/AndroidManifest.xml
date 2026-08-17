@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.blackbox.vcam">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permissions required for virtual camera operation -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -10,32 +8,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
-    <!-- BlackBox host permissions (mirror what BlackBox itself declares) -->
-    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
-    <uses-permission android:name="android.permission.MANAGE_USERS" />
-
     <application
         android:name=".VCamApplication"
         android:allowBackup="false"
         android:label="@string/app_name"
-        android:icon="@android:drawable/ic_menu_camera"
         android:theme="@style/Theme.BlackBoxVCam"
         android:largeHeap="true"
         android:hardwareAccelerated="true">
 
-        <!--
-             VCamForegroundService keeps the virtual camera engine alive
-             while a cloned app is in the foreground.
-        -->
         <service
             android:name=".service.VCamForegroundService"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection|camera" />
+            android:foregroundServiceType="mediaProjection" />
 
-        <!--
-            VideoProvider exposes the selected video file to BlackBox guest
-            processes via a ContentProvider URI, exactly as VCamera does.
-        -->
         <provider
             android:name=".camera.VCamContentProvider"
             android:authorities="com.blackbox.vcam.provider"
