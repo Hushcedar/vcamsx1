@@ -18,29 +18,15 @@ import com.blackbox.vcam.camera.VirtualCameraEngine;
 import com.blackbox.vcam.model.VCamConfig;
 import com.blackbox.vcam.util.VCamLogger;
 
-/**
- * VCamForegroundService
- *
- * Keeps the VirtualCameraEngine alive as a foreground service while
- * a BlackBox guest app with virtual camera enabled is running.
- *
- * Started by VCamBlackBoxPlugin.onAppStarted() when the config is active.
- * Stopped by VCamBlackBoxPlugin.onAppStopped().
- *
- * Extra: ACTION_STOP intent allows the notification "Stop" action to kill
- * the service without needing to open the app.
- */
 public class VCamForegroundService extends Service {
 
-    private static final String TAG              = "VCam_Service";
-    private static final String CHANNEL_ID       = "vcam_channel";
-    private static final int    NOTIF_ID         = 0x1CAM;
+    private static final String TAG         = "VCam_Service";
+    private static final String CHANNEL_ID  = "vcam_channel";
+    private static final int    NOTIF_ID    = 7201;
 
-    public static final String ACTION_START      = "com.blackbox.vcam.START";
-    public static final String ACTION_STOP       = "com.blackbox.vcam.STOP";
-    public static final String EXTRA_PACKAGE     = "guest_package";
-
-    // ── Service lifecycle ──────────────────────────────────────────────────────
+    public static final String ACTION_START  = "com.blackbox.vcam.START";
+    public static final String ACTION_STOP   = "com.blackbox.vcam.STOP";
+    public static final String EXTRA_PACKAGE = "guest_package";
 
     @Override
     public void onCreate() {
@@ -53,32 +39,25 @@ public class VCamForegroundService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
 
-        String action = intent.getAction();
-        if (ACTION_STOP.equals(action)) {
-            VCamLogger.d(TAG, "Stop action received");
+        if (ACTION_STOP.equals(intent.getAction())) {
             stopSelf();
             return START_NOT_STICKY;
         }
 
         String guestPackage = intent.getStringExtra(EXTRA_PACKAGE);
-        VCamLogger.d(TAG, "Starting foreground for: " + guestPackage);
-
-        // Promote to foreground with notification
         startForeground(NOTIF_ID, buildNotification(guestPackage));
 
-        // Ensure engine is running with the correct config
         if (guestPackage != null && VCamApplication.get() != null) {
             VCamConfig cfg = VCamApplication.get().getPlugin().getVCamConfig(guestPackage);
             VirtualCameraEngine.getInstance(this).applyConfig(cfg);
         }
 
-        return START_STICKY; // restart if killed by OOM
+        return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        VCamLogger.d(TAG, "VCamForegroundService destroyed — stopping engine");
         VirtualCameraEngine.getInstance(this).applyConfig(null);
     }
 
@@ -88,16 +67,10 @@ public class VCamForegroundService extends Service {
         return null;
     }
 
-    // ── Notification ───────────────────────────────────────────────────────────
-
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Virtual Camera",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("Virtual camera is active for a cloned app");
+                    CHANNEL_ID, "Virtual Camera", NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) nm.createNotificationChannel(channel);
@@ -111,21 +84,19 @@ public class VCamForegroundService extends Service {
                 ? PendingIntent.FLAG_IMMUTABLE : 0;
         PendingIntent stopPi = PendingIntent.getService(this, 0, stopIntent, flags);
 
-        String contentText = guestPackage != null
-                ? "Virtual camera active — " + guestPackage
+        String text = guestPackage != null
+                ? "Virtual camera active for " + guestPackage
                 : "Virtual camera is running";
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("VCam Active")
-                .setContentText(contentText)
+                .setContentText(text)
                 .setSmallIcon(android.R.drawable.ic_menu_camera)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
-                .addAction(android.R.drawable.ic_media_pause, "Stop",  stopPi)
+                .addAction(android.R.drawable.ic_media_pause, "Stop", stopPi)
                 .build();
     }
-
-    // ── Static helpers ─────────────────────────────────────────────────────────
 
     public static void start(Context context, String guestPackage) {
         Intent intent = new Intent(context, VCamForegroundService.class);
