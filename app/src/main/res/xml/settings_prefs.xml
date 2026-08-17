@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="Virtual Camera Source">
+
+        <ListPreference
+            android:key="pref_source_type"
+            android:title="Source Type"
+            android:entries="@array/source_type_labels"
+            android:entryValues="@array/source_type_values"
+            android:defaultValue="NONE"/>
+
+        <Preference
+            android:key="pref_source_file"
+            android:title="Pick Local Video / Image"
+            android:summary="Tap to pick video or image"/>
+
+        <EditTextPreference
+            android:key="pref_network_url"
+            android:title="Network Stream URL"
+            android:summary="rtmp:// or https:// stream"
+            android:dialogTitle="Enter stream URL"
+            android:inputType="textUri"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Transform">
+
+        <SwitchPreferenceCompat
+            android:key="pref_flip_h"
+            android:title="Flip Horizontal"
+            android:defaultValue="false"/>
+
+        <SwitchPreferenceCompat
+            android:key="pref_flip_v"
+            android:title="Flip Vertical"
+            android:defaultValue="false"/>
+
+        <SwitchPreferenceCompat
+            android:key="pref_mirror"
+            android:title="Mirror Mode"
+            android:defaultValue="false"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Service">
+
+        <Preference
+            android:key="pref_start_service"
+            android:title="▶  Start Virtual Camera"
+            android:summary="Feeds source into all apps"/>
+
+        <Preference
+            android:key="pref_stop_service"
+            android:title="■  Stop Virtual Camera"/>
+
+        <Preference
+            android:key="pref_clear_source"
+            android:title="Clear Source &amp; Stop"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="About">
+        <Preference
+            android:key="pref_version"
+            android:title="Version"
+            android:selectable="false"/>
+    </PreferenceCategory>
+
+</PreferenceScreen>

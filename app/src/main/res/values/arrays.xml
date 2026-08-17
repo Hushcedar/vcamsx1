@@ -1,8 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="spinner_protect_methods">
-        <item></item>
-        <item>1. Disable Camera</item>
-        <item>2. Use Local Video</item>
-        <item>3. Use Network Video Stream</item>
+    <string-array name="source_type_labels">
+        <item>None</item>
+        <item>Local Video</item>
+        <item>Local Image</item>
+        <item>RTMP Stream</item>
+        <item>HLS Stream</item>
+        <item>RTSP Stream</item>
+        <item>Camera Passthrough</item>
+    </string-array>
+
+    <string-array name="source_type_values">
+        <item>NONE</item>
+        <item>LOCAL_VIDEO</item>
+        <item>LOCAL_IMAGE</item>
+        <item>RTMP</item>
+        <item>HLS</item>
+        <item>RTSP</item>
+        <item>PASSTHROUGH</item>
     </string-array>
 </resources>

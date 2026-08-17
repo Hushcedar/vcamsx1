@@ -1,60 +1,69 @@
 package virtual.camera.app.view.apps
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import virtual.camera.app.bean.AppInfo
+import virtual.camera.app.bean.InstalledAppBean
 import virtual.camera.app.data.AppsRepository
-import virtual.camera.app.view.base.BaseViewModel
 
-/**
- *
- * @Description:
- * @Author: wukaicheng
- * @CreateDate: 2021/4/29 22:36
- */
-class AppsViewModel(private val repo: AppsRepository) : BaseViewModel() {
+class AppsViewModel(application: Application) : AndroidViewModel(application) {
 
-    val appsLiveData = MutableLiveData<List<AppInfo>>()
+    private val repository = AppsRepository()
 
-    val resultLiveData = MutableLiveData<String>()
+    val loadingLiveData   = MutableLiveData<Boolean>()
+    val appsLiveData      = MutableLiveData<List<InstalledAppBean>>()
+    val vmAppsLiveData    = MutableLiveData<List<AppInfo>>()
+    val resultLiveData    = MutableLiveData<String>()
 
-    val launchLiveData = MutableLiveData<Boolean>()
-
-    //利用LiveData只更新最后一次的特性，用来保存app顺序
-    val updateSortLiveData = MutableLiveData<Boolean>()
-
-    fun getInstalledApps(userId: Int) {
-        launchOnUI {
-            repo.getVmInstallList(userId, appsLiveData)
+    fun getInstalledAppList(userID: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.getInstalledAppList(userID, loadingLiveData, appsLiveData)
         }
     }
 
-    fun install(source: String, userID: Int) {
-        launchOnUI {
-            repo.installApk(source, userID, resultLiveData)
+    fun getVmInstallList(userId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.getVmInstallList(userId, vmAppsLiveData)
+        }
+    }
+
+    fun installApk(source: String, userId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingLiveData.postValue(true)
+            repository.installApk(source, userId, resultLiveData)
+            loadingLiveData.postValue(false)  // FIX: always stop loading
         }
     }
 
     fun unInstall(packageName: String, userID: Int) {
-        launchOnUI {
-            repo.unInstall(packageName, userID, resultLiveData)
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingLiveData.postValue(true)
+            repository.unInstall(packageName, userID, resultLiveData)
+            loadingLiveData.postValue(false)  // FIX: always stop loading
         }
     }
 
-    fun clearApkData(packageName: String,userID: Int){
-        launchOnUI {
-            repo.clearApkData(packageName,userID,resultLiveData)
+    fun launchApk(packageName: String, userId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.launchApk(packageName, userId, MutableLiveData())
         }
     }
 
-    fun launchApk(packageName: String, userID: Int) {
-        launchOnUI {
-            repo.launchApk(packageName, userID, launchLiveData)
+    fun clearApkData(packageName: String, userID: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            loadingLiveData.postValue(true)
+            repository.clearApkData(packageName, userID, resultLiveData)
+            loadingLiveData.postValue(false)
         }
     }
 
-    fun updateApkOrder(userID: Int,dataList:List<AppInfo>){
-        launchOnUI {
-            repo.updateApkOrder(userID,dataList)
+    fun updateApkOrder(userID: Int, dataList: List<AppInfo>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateApkOrder(userID, dataList)
         }
     }
 }
