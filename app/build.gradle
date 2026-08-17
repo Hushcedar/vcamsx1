@@ -1,0 +1,69 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.blackbox.vcam'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.blackbox.vcam"
+        minSdk 26          // Camera2 SessionConfiguration requires API 28+; 26 for Camera1 path
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+            applicationIdSuffix ".debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    // BlackBox is provided as a local AAR or module dependency.
+    // Place BlackBox_4_0_0_universal-release.apk's extracted AAR at:
+    //   app/libs/blackbox.aar
+    // or add BlackBox as a submodule.
+    packagingOptions {
+        jniLibs {
+            // Include BlackBox's native libs (libblackbox.so)
+            keepDebugSymbols += ['**/libblackbox.so']
+        }
+    }
+}
+
+dependencies {
+    // BlackBox as local AAR dependency
+    // Rename the APK to .zip, extract classes.dex → convert to .aar
+    // OR clone BlackBox source and add as a module:
+    //   implementation project(':blackbox')
+    // For now, reference it as a file dependency placeholder:
+    // implementation files('libs/blackbox.aar')
+
+    // AndroidX
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.fragment:fragment:1.8.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.8.3'
+
+    // Material Components (for BottomSheetDialogFragment)
+    implementation 'com.google.android.material:material:1.12.0'
+
+    // Gson for config serialization (mirrors VCamera's InfoManager)
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // IjkMedia for RTMP/RTSP playback (same dependency as VCamera)
+    // Download from: https://github.com/bilibili/ijkplayer
+    // implementation 'tv.danmaku.ijk.media:ijkplayer-java:0.8.8'
+    // implementation 'tv.danmaku.ijk.media:ijkplayer-arm64:0.8.8'
+}

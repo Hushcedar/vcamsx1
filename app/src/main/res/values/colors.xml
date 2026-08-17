@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BlackBox-style dark surface palette -->
+    <color name="bb_surface">#FF1A1A2E</color>
+    <color name="bb_surface_variant">#FF16213E</color>
+    <color name="bb_accent">#FF0F3460</color>
+    <color name="bb_accent_dim">#880F3460</color>
+    <color name="bb_text_primary">#FFFFFFFF</color>
+    <color name="bb_text_secondary">#FFAAAAAA</color>
+    <color name="bb_divider">#FF333355</color>
+</resources>

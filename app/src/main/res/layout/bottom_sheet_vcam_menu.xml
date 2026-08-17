@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="@color/bb_surface">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <ImageView
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@android:drawable/ic_menu_camera"
+            android:layout_marginEnd="10dp"
+            app:tint="@color/bb_accent" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Virtual Camera"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/bb_text_primary" />
+
+        <!-- Master toggle -->
+        <Switch
+            android:id="@+id/switch_vcam_enabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:thumbTint="@color/bb_accent"
+            android:trackTint="@color/bb_accent_dim" />
+    </LinearLayout>
+
+    <!-- Divider -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/bb_divider" android:layout_marginBottom="16dp"/>
+
+    <!-- Source selector -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Video Source"
+        android:textSize="13sp"
+        android:textColor="@color/bb_text_secondary"
+        android:layout_marginBottom="8dp"/>
+
+    <RadioGroup
+        android:id="@+id/rg_source_type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/rb_source_file"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Video File"
+            android:textColor="@color/bb_text_primary"
+            android:buttonTint="@color/bb_accent"/>
+
+        <RadioButton
+            android:id="@+id/rb_source_rtmp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="RTMP / RTSP"
+            android:textColor="@color/bb_text_primary"
+            android:buttonTint="@color/bb_accent"/>
+    </RadioGroup>
+
+    <!-- File picker section -->
+    <Button
+        android:id="@+id/btn_pick_video"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="Select Video File"
+        android:backgroundTint="@color/bb_accent"
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/tv_selected_file"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No file selected"
+        android:textSize="12sp"
+        android:textColor="@color/bb_text_secondary"
+        android:ellipsize="middle"
+        android:singleLine="true"
+        android:layout_marginBottom="8dp"/>
+
+    <ImageView
+        android:id="@+id/iv_video_thumb"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:scaleType="centerCrop"
+        android:background="@color/bb_surface_variant"
+        android:visibility="gone"
+        android:layout_marginBottom="12dp"/>
+
+    <!-- Stream URL section -->
+    <EditText
+        android:id="@+id/et_stream_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="rtmp://your.server/stream/key"
+        android:inputType="textUri"
+        android:textColor="@color/bb_text_primary"
+        android:textColorHint="@color/bb_text_secondary"
+        android:backgroundTint="@color/bb_accent"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Divider -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/bb_divider" android:layout_marginBottom="12dp"/>
+
+    <!-- Mirror front camera toggle -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Mirror Front Camera"
+            android:textColor="@color/bb_text_primary"
+            android:textSize="15sp"/>
+
+        <Switch
+            android:id="@+id/switch_mirror_front"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:thumbTint="@color/bb_accent"
+            android:trackTint="@color/bb_accent_dim"/>
+    </LinearLayout>
+
+    <!-- Auto-loop toggle -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Auto-Loop Video"
+            android:textColor="@color/bb_text_primary"
+            android:textSize="15sp"/>
+
+        <Switch
+            android:id="@+id/switch_auto_loop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:thumbTint="@color/bb_accent"
+            android:trackTint="@color/bb_accent_dim"/>
+    </LinearLayout>
+
+    <!-- Apply -->
+    <Button
+        android:id="@+id/btn_apply_vcam"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="Apply"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:backgroundTint="@color/bb_accent"
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="8dp"/>
+
+</LinearLayout>
