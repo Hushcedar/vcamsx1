@@ -136,6 +136,10 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+            <service
+            android:name=".service.VirtualCameraService"
+            android:exported="false"
+            android:foregroundServiceType="camera"/>
     </application>
 
 </manifest>
