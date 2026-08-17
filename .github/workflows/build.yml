@@ -2,9 +2,9 @@ name: Build VCam BlackBox Patch
 
 on:
   push:
-    branches: [ main ]
+    branches: [ vcambb-complete ]
   pull_request:
-    branches: [ main ]
+    branches: [ vcambb-complete ]
 
 jobs:
   build:
