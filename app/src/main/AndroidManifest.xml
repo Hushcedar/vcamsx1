@@ -105,6 +105,15 @@
     <uses-permission android:name="ohos.permission.GET_BUNDLE_INFO"/>
     <uses-permission android:name="ohos.permission.GET_BUNDLE_INFO_PRIVILEGED"/>
 
+    
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
     <application
         android:requestLegacyExternalStorage="true"
         android:preserveLegacyExternalStorage="true"
@@ -140,6 +149,13 @@
             android:name=".service.VirtualCameraService"
             android:exported="false"
             android:foregroundServiceType="camera"/>
+    
+        <!-- BlackBox DaemonService — required by virtual engine -->
+        <service
+            android:name="top.niunaijun.blackbox.core.system.DaemonService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:process=":daemon"/>
     </application>
 
 </manifest>
