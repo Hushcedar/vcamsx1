@@ -1,6 +1,6 @@
 package virtual.camera.app.view.setting
 
-import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -17,6 +18,13 @@ import virtual.camera.app.app.AppManager
 import virtual.camera.app.service.VirtualCameraService
 
 class SettingActivity : AppCompatActivity() {
+
+    companion object {
+        // Fix: MainActivity calls SettingActivity.start(this) — provide it
+        fun start(context: Context) {
+            context.startActivity(Intent(context, SettingActivity::class.java))
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,11 +54,11 @@ class SettingPreferenceFragment : PreferenceFragmentCompat() {
                     requireContext().contentResolver.takePersistableUriPermission(
                         it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (e: SecurityException) { /* ignore */ }
+                } catch (e: SecurityException) {}
                 AppManager.activeSourceUri = it.toString()
                 AppManager.activeSourceType = AppManager.SourceType.LOCAL_VIDEO
                 findPreference<Preference>("pref_source_file")?.summary = it.lastPathSegment
-                restartCameraService()
+                restartService()
                 toast("Video source set")
             }
         }
@@ -62,91 +70,74 @@ class SettingPreferenceFragment : PreferenceFragmentCompat() {
                     requireContext().contentResolver.takePersistableUriPermission(
                         it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (e: SecurityException) { /* ignore */ }
+                } catch (e: SecurityException) {}
                 AppManager.activeSourceUri = it.toString()
                 AppManager.activeSourceType = AppManager.SourceType.LOCAL_IMAGE
                 findPreference<Preference>("pref_source_file")?.summary = it.lastPathSegment
-                restartCameraService()
+                restartService()
                 toast("Image source set")
             }
         }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        preferenceManager.preferenceDataStore
         setPreferencesFromResource(R.xml.settings_prefs, rootKey)
         setup()
     }
 
     private fun setup() {
-
-        // ── Source type ───────────────────────────────────────────────────────
         findPreference<ListPreference>("pref_source_type")?.apply {
             value = AppManager.activeSourceType.name
             summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
-            setOnPreferenceChangeListener { _, newValue ->
-                AppManager.activeSourceType =
-                    AppManager.SourceType.valueOf(newValue as String)
+            setOnPreferenceChangeListener { _, v ->
+                AppManager.activeSourceType = AppManager.SourceType.valueOf(v as String)
                 true
             }
         }
 
-        // ── Pick local file ───────────────────────────────────────────────────
         findPreference<Preference>("pref_source_file")?.apply {
             summary = if (AppManager.activeSourceUri.isNotEmpty())
                 Uri.parse(AppManager.activeSourceUri).lastPathSegment
             else "Tap to pick video or image"
-
             setOnPreferenceClickListener {
                 when (AppManager.activeSourceType) {
                     AppManager.SourceType.LOCAL_IMAGE -> imagePickerLauncher.launch("image/*")
-                    else                              -> videoPickerLauncher.launch("video/*")
+                    else -> videoPickerLauncher.launch("video/*")
                 }
                 true
             }
         }
 
-        // ── Network URL ───────────────────────────────────────────────────────
-        findPreference<Preference>("pref_network_url")?.apply {
+        findPreference<EditTextPreference>("pref_network_url")?.apply {
             summary = AppManager.activeSourceUri.ifEmpty { "rtmp:// or https://" }
-            setOnPreferenceChangeListener { pref, newValue ->
-                AppManager.activeSourceUri = newValue as String
-                pref.summary = newValue
-                restartCameraService()
+            setOnPreferenceChangeListener { pref, v ->
+                AppManager.activeSourceUri = v as String
+                pref.summary = v
+                restartService()
                 true
             }
         }
 
-        // ── Flip H ────────────────────────────────────────────────────────────
         findPreference<SwitchPreferenceCompat>("pref_flip_h")?.apply {
             isChecked = AppManager.flipHorizontal
             setOnPreferenceChangeListener { _, v ->
-                AppManager.flipHorizontal = v as Boolean
-                restartCameraService()
-                true
+                AppManager.flipHorizontal = v as Boolean; restartService(); true
             }
         }
 
-        // ── Flip V ────────────────────────────────────────────────────────────
         findPreference<SwitchPreferenceCompat>("pref_flip_v")?.apply {
             isChecked = AppManager.flipVertical
             setOnPreferenceChangeListener { _, v ->
-                AppManager.flipVertical = v as Boolean
-                restartCameraService()
-                true
+                AppManager.flipVertical = v as Boolean; restartService(); true
             }
         }
 
-        // ── Mirror ────────────────────────────────────────────────────────────
         findPreference<SwitchPreferenceCompat>("pref_mirror")?.apply {
             isChecked = AppManager.mirrorMode
             setOnPreferenceChangeListener { _, v ->
-                AppManager.mirrorMode = v as Boolean
-                restartCameraService()
-                true
+                AppManager.mirrorMode = v as Boolean; restartService(); true
             }
         }
 
-        // ── Start service ─────────────────────────────────────────────────────
         findPreference<Preference>("pref_start_service")?.setOnPreferenceClickListener {
             if (AppManager.activeSourceUri.isEmpty()) {
                 toast("Pick a source first")
@@ -158,7 +149,6 @@ class SettingPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        // ── Stop service ──────────────────────────────────────────────────────
         findPreference<Preference>("pref_stop_service")?.setOnPreferenceClickListener {
             VirtualCameraService.stop(requireContext())
             AppManager.isServiceRunning = false
@@ -166,7 +156,6 @@ class SettingPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        // ── Clear source ──────────────────────────────────────────────────────
         findPreference<Preference>("pref_clear_source")?.setOnPreferenceClickListener {
             AppManager.activeSourceUri = ""
             AppManager.activeSourceType = AppManager.SourceType.NONE
@@ -177,14 +166,13 @@ class SettingPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        // ── Version ───────────────────────────────────────────────────────────
         findPreference<Preference>("pref_version")?.summary = try {
             requireContext().packageManager
                 .getPackageInfo(requireContext().packageName, 0).versionName
         } catch (e: Exception) { "3.5.0" }
     }
 
-    private fun restartCameraService() {
+    private fun restartService() {
         if (AppManager.isServiceRunning) {
             VirtualCameraService.stop(requireContext())
             VirtualCameraService.start(requireContext())

@@ -7,32 +7,27 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import virtual.camera.app.bean.AppInfo
-import virtual.camera.app.bean.InstalledAppBean
 import virtual.camera.app.data.AppsRepository
 
 class AppsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppsRepository()
 
-    val loadingLiveData  = MutableLiveData<Boolean>()
-    val appsLiveData     = MutableLiveData<List<InstalledAppBean>>()
-    val vmAppsLiveData   = MutableLiveData<List<AppInfo>>()
-    val resultLiveData   = MutableLiveData<String>()
-    val launchLiveData   = MutableLiveData<Boolean>()
+    val loadingLiveData      = MutableLiveData<Boolean>()
+    val appsLiveData         = MutableLiveData<List<AppInfo>>()
+    val resultLiveData       = MutableLiveData<String>()
+    val launchLiveData       = MutableLiveData<Boolean>()
+    val updateSortLiveData   = MutableLiveData<Boolean>()
 
-    fun getInstalledAppList(userID: Int) {
+    // Called as getInstalledApps(userID) from AppsFragment
+    fun getInstalledApps(userID: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.getInstalledAppList(userID, loadingLiveData, appsLiveData)
+            repository.getVmInstallList(userID, appsLiveData)
         }
     }
 
-    fun getVmInstallList(userId: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.getVmInstallList(userId, vmAppsLiveData)
-        }
-    }
-
-    fun installApk(source: String, userId: Int) {
+    // Called as install(source, userID) from AppsFragment
+    fun install(source: String, userId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             loadingLiveData.postValue(true)
             try {
