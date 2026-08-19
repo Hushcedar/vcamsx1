@@ -149,13 +149,6 @@
             android:name=".service.VirtualCameraService"
             android:exported="false"
             android:foregroundServiceType="camera"/>
-    
-        <!-- BlackBox DaemonService — required by virtual engine -->
-        <service
-            android:name="top.niunaijun.blackbox.core.system.DaemonService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync"
-            android:process=":daemon"/>
-    </application>
+</application>
 
 </manifest>
