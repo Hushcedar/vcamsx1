@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="#FF0F0F1A">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="20dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="VCam" android:textColor="#FFFFFFFF" android:textSize="32sp"
+            android:textStyle="bold" android:layout_marginBottom="4dp"/>
+
+        <TextView android:id="@+id/tv_status" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="○ Injection OFF"
+            android:textColor="#FF888888" android:textSize="13sp" android:layout_marginBottom="28dp"/>
+
+        <!-- Enable toggle -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="#FF1E1E2E" android:paddingStart="16dp" android:paddingEnd="16dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Enable Camera Injection"
+                android:textColor="#FFFFFFFF" android:textSize="15sp"/>
+            <androidx.appcompat.widget.SwitchCompat android:id="@+id/switch_enable"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <!-- Method section -->
+        <LinearLayout android:id="@+id/card_method" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical"
+            android:visibility="gone" android:layout_marginTop="20dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="SOURCE" android:textColor="#FF888888" android:textSize="11sp"
+                android:letterSpacing="0.12" android:layout_marginBottom="10dp"/>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:background="#FF1E1E2E" android:padding="6dp">
+                <Button android:id="@+id/btn_local" android:layout_width="0dp"
+                    android:layout_height="42dp" android:layout_weight="1" android:text="Local"
+                    android:textSize="13sp" android:backgroundTint="#FF6C63FF" android:layout_margin="4dp"/>
+                <Button android:id="@+id/btn_network" android:layout_width="0dp"
+                    android:layout_height="42dp" android:layout_weight="1" android:text="Network"
+                    android:textSize="13sp" android:backgroundTint="#FF2D2D3E" android:layout_margin="4dp"/>
+                <Button android:id="@+id/btn_off" android:layout_width="0dp"
+                    android:layout_height="42dp" android:layout_weight="1" android:text="Off"
+                    android:textSize="13sp" android:backgroundTint="#FF2D2D3E" android:layout_margin="4dp"/>
+            </LinearLayout>
+
+            <TextView android:id="@+id/tv_method_label" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="🚫  Off"
+                android:textColor="#FF6C63FF" android:textSize="14sp"
+                android:layout_marginTop="10dp" android:layout_marginBottom="18dp"/>
+
+            <!-- Local video -->
+            <LinearLayout android:id="@+id/layout_local" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical"
+                android:background="#FF1E1E2E" android:padding="16dp"
+                android:visibility="gone" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="VIDEO FILE" android:textColor="#FF888888"
+                    android:textSize="10sp" android:layout_marginBottom="6dp"/>
+                <TextView android:id="@+id/tv_video_path" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:text="No video selected"
+                    android:textColor="#FFCCCCCC" android:textSize="13sp"
+                    android:singleLine="true" android:ellipsize="middle" android:layout_marginBottom="14dp"/>
+                <Button android:id="@+id/btn_pick_video" android:layout_width="match_parent"
+                    android:layout_height="46dp" android:text="Browse Video"
+                    android:backgroundTint="#FF6C63FF" android:layout_marginBottom="14dp"/>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Play Audio"
+                        android:textColor="#FFFFFFFF" android:textSize="14sp"/>
+                    <androidx.appcompat.widget.SwitchCompat android:id="@+id/switch_audio"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:checked="true"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Network stream -->
+            <LinearLayout android:id="@+id/layout_network" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical"
+                android:background="#FF1E1E2E" android:padding="16dp"
+                android:visibility="gone" android:layout_marginBottom="10dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="STREAM URL (RTMP / HTTP)" android:textColor="#FF888888"
+                    android:textSize="10sp" android:layout_marginBottom="8dp"/>
+                <EditText android:id="@+id/et_network_url" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:hint="rtmp:// or http://"
+                    android:inputType="textUri" android:textColor="#FFFFFFFF"
+                    android:textColorHint="#FF555566" android:layout_marginBottom="14dp"/>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Play Audio"
+                        android:textColor="#FFFFFFFF" android:textSize="14sp"/>
+                    <androidx.appcompat.widget.SwitchCompat android:id="@+id/switch_net_audio"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:checked="true"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <Button android:id="@+id/btn_save" android:layout_width="match_parent"
+                android:layout_height="54dp" android:text="Save Settings"
+                android:textSize="16sp" android:backgroundTint="#FF6C63FF"
+                android:layout_marginTop="6dp" android:layout_marginBottom="8dp"/>
+        </LinearLayout>
+
+        <!-- Overlay -->
+        <Button android:id="@+id/btn_overlay" android:layout_width="match_parent"
+            android:layout_height="48dp" android:text="Grant Overlay Permission"
+            android:backgroundTint="#FF1E1E2E" android:textColor="#FF888888"
+            android:layout_marginTop="28dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Required for the floating control panel inside camera apps."
+            android:textColor="#FF555566" android:textSize="11sp" android:layout_marginTop="8dp"/>
+    </LinearLayout>
+</ScrollView>

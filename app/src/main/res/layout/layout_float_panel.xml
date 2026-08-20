@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView android:id="@+id/drag_handle"
+        android:layout_width="52dp" android:layout_height="52dp"
+        android:gravity="center" android:text="🎮" android:textSize="22sp"
+        android:background="#CC1A1F35" android:clickable="true" android:focusable="true"/>
+
+    <LinearLayout android:id="@+id/panel_controls"
+        android:layout_width="156dp" android:layout_height="wrap_content"
+        android:orientation="vertical" android:background="#EE1A1F35"
+        android:padding="8dp" android:visibility="gone">
+
+        <Button android:id="@+id/btn_pause" android:layout_width="match_parent"
+            android:layout_height="40dp" android:text="⏸  Pause / Resume"
+            android:textSize="11sp" android:backgroundTint="#FF2D3561" android:layout_marginBottom="3dp"/>
+        <Button android:id="@+id/btn_reload" android:layout_width="match_parent"
+            android:layout_height="40dp" android:text="↺  Reload"
+            android:textSize="11sp" android:backgroundTint="#FF2D3561" android:layout_marginBottom="3dp"/>
+        <Button android:id="@+id/btn_rotate" android:layout_width="match_parent"
+            android:layout_height="40dp" android:text="⟳  Rotate 90°"
+            android:textSize="11sp" android:backgroundTint="#FF2D3561" android:layout_marginBottom="3dp"/>
+        <Button android:id="@+id/btn_flip" android:layout_width="match_parent"
+            android:layout_height="40dp" android:text="↔  Flip"
+            android:textSize="11sp" android:backgroundTint="#FF2D3561" android:layout_marginBottom="6dp"/>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="6dp">
+            <Button android:id="@+id/btn_zoom_in" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="40dp" android:text="➕" android:backgroundTint="#FF1E3D2F"
+                android:layout_marginEnd="3dp"/>
+            <Button android:id="@+id/btn_zoom_out" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="40dp" android:text="➖" android:backgroundTint="#FF3D1E1E"/>
+        </LinearLayout>
+
+        <!-- D-pad -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center">
+            <Button android:id="@+id/btn_up" android:layout_width="44dp" android:layout_height="40dp"
+                android:text="▲" android:textSize="13sp" android:backgroundTint="#FF2D3561"/>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center" android:layout_marginVertical="2dp">
+            <Button android:id="@+id/btn_left" android:layout_width="44dp" android:layout_height="40dp"
+                android:text="◄" android:textSize="13sp" android:backgroundTint="#FF2D3561"
+                android:layout_marginEnd="3dp"/>
+            <Button android:id="@+id/btn_reset" android:layout_width="44dp" android:layout_height="40dp"
+                android:text="⊙" android:textSize="13sp" android:backgroundTint="#FF444444"
+                android:layout_marginEnd="3dp"/>
+            <Button android:id="@+id/btn_right" android:layout_width="44dp" android:layout_height="40dp"
+                android:text="►" android:textSize="13sp" android:backgroundTint="#FF2D3561"/>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="6dp">
+            <Button android:id="@+id/btn_down" android:layout_width="44dp" android:layout_height="40dp"
+                android:text="▼" android:textSize="13sp" android:backgroundTint="#FF2D3561"/>
+        </LinearLayout>
+
+        <Button android:id="@+id/btn_close" android:layout_width="match_parent"
+            android:layout_height="36dp" android:text="✕  Close" android:textSize="11sp"
+            android:backgroundTint="#FF7B0000" android:layout_marginTop="3dp"/>
+    </LinearLayout>
+</LinearLayout>
