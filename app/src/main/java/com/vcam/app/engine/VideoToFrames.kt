@@ -4,7 +4,7 @@ import android.media.*
 import android.net.Uri
 import android.util.Log
 import android.view.Surface
-import com.vcam.app.MainHook
+import com.vcam.app.engine.MainHook
 
 class VideoToFrames : Runnable {
     companion object {
