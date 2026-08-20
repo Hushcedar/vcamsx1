@@ -201,3 +201,25 @@ object VideoPlayer {
     fun releaseMediaPlayer() = releaseAll()
     val ijkMediaPlayer: IjkMediaPlayer? get() = ijkPlayer
 }
+
+    fun onCameraSwitch() {
+        // Called when camera switches — reset state
+        releaseAll()
+        VideoControls.isPaused.value = false
+        VideoControls.rotation.value = 0
+        VideoControls.scale.value   = 1f
+        VideoControls.offsetX.value = 0f
+        VideoControls.offsetY.value = 0f
+        android.util.Log.d("VCam-Player", "Camera switched — reset state")
+    }
+
+    fun addImageWriterTarget(surface: Surface, format: Int, width: Int, height: Int) {
+        // Called when ImageReader creates a surface — use it for decoder output
+        if (surface.isValid) {
+            // Store the ImageReader surface for later use
+            copyReaderSurface = surface
+            // If we already have a VideoToFrames instance, update its surface
+            c2_hw_decode_obj?.set_surface(surface)
+            android.util.Log.d("VCam-Player", "ImageWriter target added: ${width}x${height} format=$format")
+        }
+    }
