@@ -1,35 +1,14 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.VCamera" parent="Theme.MaterialComponents.Light.NoActionBar">
-        <!-- Primary brand color. -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VCamera" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_dark</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/primary_light</item>
-        <item name="colorSecondaryVariant">@color/primary</item>
-        <item name="colorOnSecondary">@color/white</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
-
-        <item name="actionMenuTextColor">@color/primary_text</item>
-
-        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/primary</item>
     </style>
 
-    <style name="ToolBarColorStyle" parent="ThemeOverlay.AppCompat.ActionBar">
-        <item name="actionMenuTextColor">@color/white</item>
-        <item name="colorControlNormal">@color/white</item>
-
-        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
-    </style>
-
-    <style name="WelcomeTheme" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.VCamera.Splash" parent="Theme.VCamera">
         <item name="android:windowBackground">@drawable/splash</item>
-    </style>
-
-    <style name="VCameraDialog" parent="Theme.VCamera">
-        <item name="textAllCaps">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>
