@@ -6,6 +6,7 @@ import androidx.core.content.edit
 
 object VCamPrefs {
     private lateinit var prefs: SharedPreferences
+    private lateinit var appCtx: Context
 
     const val KEY_METHOD_TYPE   = "method_type"
     const val KEY_VIDEO_PATH    = "video_path_final"
@@ -20,7 +21,9 @@ object VCamPrefs {
     const val TYPE_NETWORK     = 2
 
     fun init(ctx: Context) {
-        prefs = ctx.getSharedPreferences("vcam_prefs", Context.MODE_WORLD_READABLE)
+        appCtx = ctx.applicationContext
+        // MODE_PRIVATE — MODE_WORLD_READABLE removed in Android 7
+        prefs = appCtx.getSharedPreferences("vcam_prefs", Context.MODE_PRIVATE)
     }
 
     fun getInt(key: String, def: Int = 0)            = prefs.getInt(key, def)
