@@ -15,8 +15,8 @@ object VideoPlayer {
     var c2_hw_decode_obj: VideoToFrames? = null
     var copyReaderSurface: Surface? = null
 
-    private var mediaPlayer:   MediaPlayer?            = null
-    private var ijkPlayer:     IjkMediaPlayer?         = null
+    private var mediaPlayer:   MediaPlayer?             = null
+    private var ijkPlayer:     IjkMediaPlayer?          = null
     private var transformer:   VideoSurfaceTransformer? = null
     private var isInitializing = false
 
@@ -137,34 +137,29 @@ object VideoPlayer {
 
     fun rotate() {
         val r = (VideoControls.rotation.value + 90) % 360
-        VideoControls.rotation.value = r
-        transformer?.setRotation(r)
+        VideoControls.rotation.value = r; transformer?.setRotation(r)
     }
 
     fun flip() {
         val f = !VideoControls.isFlipped.value
-        VideoControls.isFlipped.value = f
-        transformer?.setFlip(f)
+        VideoControls.isFlipped.value = f; transformer?.setFlip(f)
     }
 
     fun zoomIn() {
         val s = (VideoControls.scale.value + 0.05f).coerceAtMost(4f)
-        VideoControls.scale.value = s
-        transformer?.setScale(s)
+        VideoControls.scale.value = s; transformer?.setScale(s)
     }
 
     fun zoomOut() {
         val s = (VideoControls.scale.value - 0.05f).coerceAtLeast(0.1f)
-        VideoControls.scale.value = s
-        transformer?.setScale(s)
+        VideoControls.scale.value = s; transformer?.setScale(s)
     }
 
     fun adjustOffset(dx: Int, dy: Int) {
         val step = 0.04f
         val x = (VideoControls.offsetX.value + if (dx > 0) step else if (dx < 0) -step else 0f).coerceIn(-2f, 2f)
         val y = (VideoControls.offsetY.value + if (dy > 0) step else if (dy < 0) -step else 0f).coerceIn(-2f, 2f)
-        VideoControls.offsetX.value = x
-        VideoControls.offsetY.value = y
+        VideoControls.offsetX.value = x; VideoControls.offsetY.value = y
         transformer?.setOffset(x, y)
     }
 
@@ -172,8 +167,7 @@ object VideoPlayer {
         VideoControls.scale.value   = 1f
         VideoControls.offsetX.value = 0f
         VideoControls.offsetY.value = 0f
-        transformer?.setScale(1f)
-        transformer?.setOffset(0f, 0f)
+        transformer?.setScale(1f); transformer?.setOffset(0f, 0f)
     }
 
     private fun initRtmp() {
