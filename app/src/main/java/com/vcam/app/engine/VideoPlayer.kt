@@ -15,8 +15,8 @@ object VideoPlayer {
     var c2_hw_decode_obj: VideoToFrames? = null
     var copyReaderSurface: Surface? = null
 
-    private var mediaPlayer:   MediaPlayer?      = null
-    private var ijkPlayer:     IjkMediaPlayer?   = null
+    private var mediaPlayer:   MediaPlayer?            = null
+    private var ijkPlayer:     IjkMediaPlayer?         = null
     private var transformer:   VideoSurfaceTransformer? = null
     private var isInitializing = false
 
@@ -60,6 +60,19 @@ object VideoPlayer {
             c2_hw_decode_obj?.set_surface(surface)
             c2_hw_decode_obj?.decode(Uri.parse("content://com.vcam.app.videoprovider"))
         } catch (e: Exception) { Log.d(TAG, "c2_reader_play: ${e.message}") }
+    }
+
+    fun onCameraSwitch() {
+        Log.d(TAG, "onCameraSwitch — releasing pipeline")
+        releasePipelineAndPlayer()
+        currentRunningSurface = null
+    }
+
+    fun addImageWriterTarget(surface: Surface, format: Int, width: Int, height: Int) {
+        Log.d(TAG, "addImageWriterTarget format=0x${format.toString(16)} ${width}x${height}")
+        outWidth  = width
+        outHeight = height
+        c2_reader_play(surface)
     }
 
     private fun play(surface: Surface) {
@@ -150,7 +163,8 @@ object VideoPlayer {
         val step = 0.04f
         val x = (VideoControls.offsetX.value + if (dx > 0) step else if (dx < 0) -step else 0f).coerceIn(-2f, 2f)
         val y = (VideoControls.offsetY.value + if (dy > 0) step else if (dy < 0) -step else 0f).coerceIn(-2f, 2f)
-        VideoControls.offsetX.value = x; VideoControls.offsetY.value = y
+        VideoControls.offsetX.value = x
+        VideoControls.offsetY.value = y
         transformer?.setOffset(x, y)
     }
 
@@ -158,7 +172,8 @@ object VideoPlayer {
         VideoControls.scale.value   = 1f
         VideoControls.offsetX.value = 0f
         VideoControls.offsetY.value = 0f
-        transformer?.setScale(1f); transformer?.setOffset(0f, 0f)
+        transformer?.setScale(1f)
+        transformer?.setOffset(0f, 0f)
     }
 
     private fun initRtmp() {
@@ -193,6 +208,8 @@ object VideoPlayer {
 
     fun releaseAll() {
         releasePipelineAndPlayer()
+        c2_hw_decode_obj?.stopDecode(); c2_hw_decode_obj = null
+        copyReaderSurface = null
         try { ijkPlayer?.stop() } catch (_: Exception) {}
         ijkPlayer?.release(); ijkPlayer = null
         currentRunningSurface = null
@@ -201,25 +218,3 @@ object VideoPlayer {
     fun releaseMediaPlayer() = releaseAll()
     val ijkMediaPlayer: IjkMediaPlayer? get() = ijkPlayer
 }
-
-    fun onCameraSwitch() {
-        // Called when camera switches — reset state
-        releaseAll()
-        VideoControls.isPaused.value = false
-        VideoControls.rotation.value = 0
-        VideoControls.scale.value   = 1f
-        VideoControls.offsetX.value = 0f
-        VideoControls.offsetY.value = 0f
-        android.util.Log.d("VCam-Player", "Camera switched — reset state")
-    }
-
-    fun addImageWriterTarget(surface: Surface, format: Int, width: Int, height: Int) {
-        // Called when ImageReader creates a surface — use it for decoder output
-        if (surface.isValid) {
-            // Store the ImageReader surface for later use
-            copyReaderSurface = surface
-            // If we already have a VideoToFrames instance, update its surface
-            c2_hw_decode_obj?.set_surface(surface)
-            android.util.Log.d("VCam-Player", "ImageWriter target added: ${width}x${height} format=$format")
-        }
-    }
