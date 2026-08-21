@@ -20,12 +20,27 @@ class FloatingService : Service() {
 
     companion object {
         const val CHANNEL_ID = "vcam_float"
-        fun start(ctx: Context) = ctx.startForegroundService(Intent(ctx, FloatingService::class.java))
-        fun stop(ctx: Context)  = ctx.stopService(Intent(ctx, FloatingService::class.java))
+
+        fun start(ctx: Context) {
+            try {
+                val i = Intent(ctx, FloatingService::class.java)
+                if (Build.VERSION.SDK_INT >= 26)
+                    ctx.startForegroundService(i)
+                else
+                    ctx.startService(i)
+            } catch (e: Exception) {
+                android.util.Log.e("VCam-Float", "start failed: ${e.message}")
+            }
+        }
+
+        fun stop(ctx: Context) = try { ctx.stopService(Intent(ctx, FloatingService::class.java)) } catch (_: Exception) {}
+
         fun send(ctx: Context, action: String, dx: Int = 0, dy: Int = 0) {
             ctx.sendBroadcast(Intent(action).apply {
                 addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                if (action == VideoControlReceiver.ACTION_ADJUST) { putExtra("dx", dx); putExtra("dy", dy) }
+                if (action == VideoControlReceiver.ACTION_ADJUST) {
+                    putExtra("dx", dx); putExtra("dy", dy)
+                }
             })
         }
     }
@@ -33,7 +48,7 @@ class FloatingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(1, buildNotif())
+        startForeground(2, buildNotif())
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         show()
     }
@@ -42,31 +57,46 @@ class FloatingService : Service() {
         val view = LayoutInflater.from(this).inflate(R.layout.layout_float_panel, null)
         rootView = view
 
+        val type = if (Build.VERSION.SDK_INT >= 26)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 16; y = 300 }
 
         val handle = view.findViewById<View>(R.id.drag_handle)
         var lx = 0f; var ly = 0f
+
         handle.setOnTouchListener { _, e ->
             when (e.action) {
-                MotionEvent.ACTION_DOWN -> { lx = e.rawX; ly = e.rawY }
+                MotionEvent.ACTION_DOWN -> { lx = e.rawX; ly = e.rawY; true }
                 MotionEvent.ACTION_MOVE -> {
-                    lp.x += (e.rawX - lx).toInt(); lp.y += (e.rawY - ly).toInt()
-                    lx = e.rawX; ly = e.rawY; wm.updateViewLayout(view, lp)
+                    val dx = e.rawX - lx; val dy = e.rawY - ly
+                    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+                        lp.x += dx.toInt(); lp.y += dy.toInt()
+                        lx = e.rawX; ly = e.rawY
+                        try { wm.updateViewLayout(view, lp) } catch (_: Exception) {}
+                    }
+                    true
                 }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.rawX - lx; val dy = e.rawY - ly
+                    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) {
+                        expanded = !expanded
+                        view.findViewById<View>(R.id.panel_controls).visibility =
+                            if (expanded) View.VISIBLE else View.GONE
+                    }
+                    true
+                }
+                else -> false
             }
-            true
-        }
-        handle.setOnClickListener {
-            expanded = !expanded
-            view.findViewById<View>(R.id.panel_controls).visibility =
-                if (expanded) View.VISIBLE else View.GONE
         }
 
         fun btn(id: Int, action: String, dx: Int = 0, dy: Int = 0) =
@@ -85,7 +115,11 @@ class FloatingService : Service() {
         btn(R.id.btn_reset,    VideoControlReceiver.ACTION_RESET_TRANSFORM)
         view.findViewById<Button>(R.id.btn_close).setOnClickListener { stop(this) }
 
-        wm.addView(view, lp)
+        try {
+            wm.addView(view, lp)
+        } catch (e: Exception) {
+            android.util.Log.e("VCam-Float", "addView failed: ${e.message}")
+        }
     }
 
     override fun onDestroy() {
@@ -98,13 +132,13 @@ class FloatingService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= 26)
             (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(NotificationChannel(CHANNEL_ID, "VCam Controls",
-                    NotificationManager.IMPORTANCE_LOW))
+                .createNotificationChannel(NotificationChannel(
+                    CHANNEL_ID, "VCam Float", NotificationManager.IMPORTANCE_LOW))
     }
 
     private fun buildNotif() = NotificationCompat.Builder(this, CHANNEL_ID)
-        .setContentTitle("VCam Active")
-        .setContentText("Camera injection running")
+        .setContentTitle("VCam Controls")
+        .setContentText("Tap 🎮 to open controls")
         .setSmallIcon(R.drawable.ic_camera)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .build()

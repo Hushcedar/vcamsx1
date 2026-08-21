@@ -42,11 +42,19 @@ class VideoSurfaceTransformer(
         """.trimIndent()
 
         private val QUAD_COORDS = floatArrayOf(
-            -1f, -1f, 0f,  1f, -1f, 0f,  -1f, 1f, 0f,  1f, 1f, 0f
+            -1f, -1f, 0f,
+             1f, -1f, 0f,
+            -1f,  1f, 0f,
+             1f,  1f, 0f
         )
+
         private val QUAD_TEXCOORDS = floatArrayOf(
-            0f, 1f,  1f, 1f,  0f, 0f,  1f, 0f
+            0f, 0f,
+            1f, 0f,
+            0f, 1f,
+            1f, 1f
         )
+
         private val IDENTITY = floatArrayOf(
             1f,0f,0f,0f, 0f,1f,0f,0f, 0f,0f,1f,0f, 0f,0f,0f,1f
         )
@@ -111,29 +119,45 @@ class VideoSurfaceTransformer(
                     drawFrame(); pushCanvas()
                 } else Thread.sleep(4)
             }
-        } catch (e: Exception) { Log.e(TAG, "renderLoop: ${e.message}", e) } finally { teardown() }
+        } catch (e: Exception) {
+            Log.e(TAG, "renderLoop: ${e.message}", e)
+        } finally { teardown() }
     }
 
     private fun drawFrame() {
         GLES20.glViewport(0, 0, width, height)
-        GLES20.glClearColor(0f,0f,0f,1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         GLES20.glUseProgram(program)
+
         val mvp = FloatArray(16)
         android.opengl.Matrix.setIdentityM(mvp, 0)
+
+        android.opengl.Matrix.scaleM(mvp, 0, 1f, -1f, 1f)
         android.opengl.Matrix.scaleM(mvp, 0, glScale, glScale, 1f)
-        if (rotationDeg != 0) android.opengl.Matrix.rotateM(mvp, 0, rotationDeg.toFloat(), 0f, 0f, 1f)
-        if (flipHorizontal) android.opengl.Matrix.scaleM(mvp, 0, -1f, 1f, 1f)
+        if (rotationDeg != 0)
+            android.opengl.Matrix.rotateM(mvp, 0, rotationDeg.toFloat(), 0f, 0f, 1f)
+        if (flipHorizontal)
+            android.opengl.Matrix.scaleM(mvp, 0, -1f, 1f, 1f)
         android.opengl.Matrix.translateM(mvp, 0, offsetX, offsetY, 0f)
+
         GLES20.glUniformMatrix4fv(uMVP, 1, false, mvp, 0)
         GLES20.glUniformMatrix4fv(uTex, 1, false, IDENTITY, 0)
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTexId)
+
         GLES20.glEnableVertexAttribArray(aPos)
-        GLES20.glVertexAttribPointer(aPos, COORDS_PER_VERTEX, GLES20.GL_FLOAT, false, COORDS_PER_VERTEX*4, vertBuf)
+        GLES20.glVertexAttribPointer(aPos, COORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, COORDS_PER_VERTEX * 4, vertBuf)
         GLES20.glEnableVertexAttribArray(aTex)
-        GLES20.glVertexAttribPointer(aTex, TEXCOORDS_PER_VERTEX, GLES20.GL_FLOAT, false, TEXCOORDS_PER_VERTEX*4, texBuf)
+        GLES20.glVertexAttribPointer(aTex, TEXCOORDS_PER_VERTEX, GLES20.GL_FLOAT,
+            false, TEXCOORDS_PER_VERTEX * 4, texBuf)
+
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-        GLES20.glDisableVertexAttribArray(aPos); GLES20.glDisableVertexAttribArray(aTex)
+
+        GLES20.glDisableVertexAttribArray(aPos)
+        GLES20.glDisableVertexAttribArray(aTex)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, 0)
         GLES20.glUseProgram(0)
     }
@@ -141,7 +165,8 @@ class VideoSurfaceTransformer(
     private fun pushCanvas() {
         try {
             pixelBuf.rewind()
-            GLES20.glReadPixels(0,0,width,height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelBuf)
+            GLES20.glReadPixels(0, 0, width, height,
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelBuf)
             pixelBuf.rewind()
             val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             bmp.copyPixelsFromBuffer(pixelBuf)
@@ -156,10 +181,10 @@ class VideoSurfaceTransformer(
     private fun setupEgl() {
         eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(eglDisplay != EGL14.EGL_NO_DISPLAY)
-        val ver = IntArray(2)
-        check(EGL14.eglInitialize(eglDisplay, ver, 0, ver, 1))
-        val att = intArrayOf(EGL14.EGL_RED_SIZE,8, EGL14.EGL_GREEN_SIZE,8, EGL14.EGL_BLUE_SIZE,8,
-            EGL14.EGL_ALPHA_SIZE,8, EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+        val ver = IntArray(2); check(EGL14.eglInitialize(eglDisplay, ver, 0, ver, 1))
+        val att = intArrayOf(EGL14.EGL_RED_SIZE,8, EGL14.EGL_GREEN_SIZE,8,
+            EGL14.EGL_BLUE_SIZE,8, EGL14.EGL_ALPHA_SIZE,8,
+            EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
             EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT, EGL14.EGL_NONE)
         val cfgs = arrayOfNulls<EGLConfig>(1); val num = IntArray(1)
         check(EGL14.eglChooseConfig(eglDisplay, att, 0, cfgs, 0, 1, num, 0))
@@ -174,11 +199,11 @@ class VideoSurfaceTransformer(
 
     private fun setupGl() {
         program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER); check(program != 0)
-        aPos = GLES20.glGetAttribLocation(program,  "aPosition")
-        aTex = GLES20.glGetAttribLocation(program,  "aTextureCoord")
+        aPos = GLES20.glGetAttribLocation(program, "aPosition")
+        aTex = GLES20.glGetAttribLocation(program, "aTextureCoord")
         uMVP = GLES20.glGetUniformLocation(program, "uMVPMatrix")
         uTex = GLES20.glGetUniformLocation(program, "uTexMatrix")
-        val t = IntArray(1); GLES20.glGenTextures(1,t,0); oesTexId = t[0]
+        val t = IntArray(1); GLES20.glGenTextures(1, t, 0); oesTexId = t[0]
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTexId)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
@@ -187,9 +212,9 @@ class VideoSurfaceTransformer(
     }
 
     private fun setupBuffers() {
-        vertBuf = ByteBuffer.allocateDirect(QUAD_COORDS.size*4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        vertBuf = ByteBuffer.allocateDirect(QUAD_COORDS.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             .also { it.put(QUAD_COORDS); it.position(0) }
-        texBuf  = ByteBuffer.allocateDirect(QUAD_TEXCOORDS.size*4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        texBuf  = ByteBuffer.allocateDirect(QUAD_TEXCOORDS.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
             .also { it.put(QUAD_TEXCOORDS); it.position(0) }
     }
 
@@ -208,17 +233,17 @@ class VideoSurfaceTransformer(
         val v = compileShader(GLES20.GL_VERTEX_SHADER, vs)
         val f = compileShader(GLES20.GL_FRAGMENT_SHADER, fs)
         val p = GLES20.glCreateProgram()
-        GLES20.glAttachShader(p,v); GLES20.glAttachShader(p,f); GLES20.glLinkProgram(p)
+        GLES20.glAttachShader(p, v); GLES20.glAttachShader(p, f); GLES20.glLinkProgram(p)
         val st = IntArray(1); GLES20.glGetProgramiv(p, GLES20.GL_LINK_STATUS, st, 0)
-        if (st[0]==0) { Log.e(TAG,"link: ${GLES20.glGetProgramInfoLog(p)}"); GLES20.glDeleteProgram(p); return 0 }
+        if (st[0] == 0) { Log.e(TAG, "link: ${GLES20.glGetProgramInfoLog(p)}"); GLES20.glDeleteProgram(p); return 0 }
         GLES20.glDeleteShader(v); GLES20.glDeleteShader(f); return p
     }
 
     private fun compileShader(type: Int, src: String): Int {
         val s = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(s,src); GLES20.glCompileShader(s)
+        GLES20.glShaderSource(s, src); GLES20.glCompileShader(s)
         val st = IntArray(1); GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, st, 0)
-        if (st[0]==0) { Log.e(TAG,"compile: ${GLES20.glGetShaderInfoLog(s)}"); GLES20.glDeleteShader(s); return 0 }
+        if (st[0] == 0) { Log.e(TAG, "compile: ${GLES20.glGetShaderInfoLog(s)}"); GLES20.glDeleteShader(s); return 0 }
         return s
     }
 }
