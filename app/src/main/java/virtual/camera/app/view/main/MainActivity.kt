@@ -47,22 +47,28 @@ class MainActivity : LoadingActivity() {
 
     private fun initToolbarSubTitle() {
         updateUserRemark(0)
-        viewBinding.toolbarLayout.toolbar.getChildAt(1)?.setOnClickListener {
-            MaterialDialog(this).show {
-                title(res = R.string.userRemark)
-                input(
-                    hintRes = R.string.userRemark,
-                    prefill = viewBinding.toolbarLayout.toolbar.subtitle
-                ) { _, input ->
-                    AppManager.mRemarkSharedPreferences.edit {
-                        putString("Remark$currentUser", input.toString())
-                        viewBinding.toolbarLayout.toolbar.subtitle = input
+        try {
+            viewBinding.toolbarLayout.toolbar.getChildAt(1)?.setOnClickListener {
+                try {
+                    MaterialDialog(this).show {
+                        title(res = R.string.userRemark)
+                        input(
+                            hintRes = R.string.userRemark,
+                            prefill = viewBinding.toolbarLayout.toolbar.subtitle
+                        ) { _, input ->
+                            try {
+                                AppManager.mRemarkSharedPreferences.edit {
+                                    putString("Remark$currentUser", input.toString())
+                                    viewBinding.toolbarLayout.toolbar.subtitle = input
+                                }
+                            } catch (e: Exception) { e.printStackTrace() }
+                        }
+                        positiveButton(res = R.string.done)
+                        negativeButton(res = R.string.cancel)
                     }
-                }
-                positiveButton(res = R.string.done)
-                negativeButton(res = R.string.cancel)
+                } catch (e: Exception) { e.printStackTrace() }
             }
-        }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun initViewPager() {
