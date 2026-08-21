@@ -38,6 +38,8 @@ class MainActivity : LoadingActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
+        setSupportActionBar(viewBinding.toolbarLayout.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(true)
         initViewPager()
         initFab()
         initToolbarSubTitle()
