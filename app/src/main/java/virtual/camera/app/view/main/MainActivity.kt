@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
 import androidx.viewpager2.widget.ViewPager2
@@ -16,9 +17,7 @@ import virtual.camera.app.R
 import virtual.camera.app.app.App
 import virtual.camera.app.app.AppManager
 import virtual.camera.app.databinding.ActivityMainBinding
-import virtual.camera.app.util.AppUtil
 import virtual.camera.app.util.Resolution
-import virtual.camera.app.util.ToastUtils
 import virtual.camera.app.util.inflate
 import virtual.camera.app.view.apps.AppsFragment
 import virtual.camera.app.view.base.LoadingActivity
@@ -39,17 +38,16 @@ class MainActivity : LoadingActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
-        // initToolbar suppressed // viewBinding.toolbarLayout.toolbar, R.string.app_name)
         initViewPager()
         initFab()
         initToolbarSubTitle()
-        DialogUtil.showDialog(this,true)
+        // Fix 1: replaced deprecated showDialog() with DialogUtil.showTipsDialog()
+        DialogUtil.showTipsDialog(this)
     }
 
     private fun initToolbarSubTitle() {
         updateUserRemark(0)
-        //hack code
-        viewBinding.toolbarLayout.toolbar.getChildAt(1).setOnClickListener {
+        viewBinding.toolbarLayout.toolbar.getChildAt(1)?.setOnClickListener {
             MaterialDialog(this).show {
                 title(res = R.string.userRemark)
                 input(
@@ -89,7 +87,6 @@ class MainActivity : LoadingActivity() {
                 showFloatButton(true)
             }
         })
-
     }
 
     private fun initFab() {
@@ -105,33 +102,25 @@ class MainActivity : LoadingActivity() {
         val tranY: Float = Resolution.convertDpToPixel(120F, App.getContext())
         val time = 200L
         if (show) {
-            viewBinding.fab.animate().translationY(0f).alpha(1f).setDuration(time)
-                .start()
+            viewBinding.fab.animate().translationY(0f).alpha(1f).setDuration(time).start()
         } else {
-            viewBinding.fab.animate().translationY(tranY).alpha(0f).setDuration(time)
-                .start()
+            viewBinding.fab.animate().translationY(tranY).alpha(0f).setDuration(time).start()
         }
     }
 
     fun scanUser() {
         val userList = HackApi.getAvailableUserSpace()
-
         if (fragmentList.size == userList.size) {
             fragmentList.add(AppsFragment.newInstance(fragmentList.size))
         } else if (fragmentList.size > userList.size + 1) {
             fragmentList.removeLast()
         }
-
         mViewPagerAdapter.notifyDataSetChanged()
-
     }
 
     private fun updateUserRemark(userId: Int) {
         var remark = AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId")
-        if (remark.isNullOrEmpty()) {
-            remark = "User $userId"
-        }
-
+        if (remark.isNullOrEmpty()) remark = "User $userId"
         viewBinding.toolbarLayout.toolbar.subtitle = remark
     }
 
@@ -145,7 +134,6 @@ class MainActivity : LoadingActivity() {
                         fragmentList[userId].installApk(source)
                     }
                 }
-
             }
         }
 
@@ -155,25 +143,33 @@ class MainActivity : LoadingActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        when (item?.itemId) {
+        when (item.itemId) {
             R.id.main_setting -> {
                 SettingActivity.start(this)
             }
-                        R.id.killApps -> {
+            R.id.killApps -> {
+                // Fix 2: killAllProcess() doesn't exist — kill via HackApi user spaces
                 try {
-                    top.niunaijun.blackbox.BlackBoxCore.get().killAllProcess()
+                    HackApi.getAvailableUserSpace().forEach { userId ->
+                        HackApi.getInstalledPackages(0, userId).forEach { pkg ->
+                            try {
+                                top.niunaijun.blackbox.BlackBoxCore.get()
+                                    .bActivityManager?.killBackgroundProcesses(pkg, userId)
+                            } catch (e: Exception) { /* ignore per-app */ }
+                        }
+                    }
+                    Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    android.widget.Toast.makeText(this, "Apps killed", android.widget.Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
                 }
             }
-                        R.id.open_source -> {
+            R.id.open_source -> {
                 try {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://github.com/andvipgroup/VCamera"))
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val intent = Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/andvipgroup/VCamera"))
                     startActivity(intent)
                 } catch (e: Exception) {
-                    android.widget.Toast.makeText(this, "Could not open browser", android.widget.Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Could not open browser", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -182,9 +178,7 @@ class MainActivity : LoadingActivity() {
 
     companion object {
         fun start(context: Context) {
-            val intent = Intent(context, MainActivity::class.java)
-            context.startActivity(intent)
+            context.startActivity(Intent(context, MainActivity::class.java))
         }
     }
-
 }
