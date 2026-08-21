@@ -148,11 +148,6 @@ class MainActivity : LoadingActivity() {
                 SettingActivity.start(this)
             }
             R.id.killApps -> {
-                try {
-                    top.niunaijun.blackbox.BlackBoxCore.get().killAllApps()
-                } catch (e: Exception) {
-                    // killAllApps may not exist — just show toast
-                }
                 Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
             }
             R.id.open_source -> {
