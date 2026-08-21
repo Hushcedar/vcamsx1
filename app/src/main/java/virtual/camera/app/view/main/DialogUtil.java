@@ -1,68 +1,50 @@
 package virtual.camera.app.view.main;
 
 import android.app.Activity;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
-
 import androidx.appcompat.app.AlertDialog;
-
 import virtual.camera.app.R;
-import virtual.camera.app.util.ToastUtils;
-import virtual.camera.camera.MultiPreferences;
+import virtual.camera.app.app.AppManager;
 
 public class DialogUtil {
-    public static void showDialog(final Activity activity, boolean check) {
-        try {
-            boolean show_start_dialog = MultiPreferences.getInstance().getBoolean("show_start_dialog", true);
-            if (!show_start_dialog && check) {
-                return;
-            }
-            AlertDialog.Builder builder = new AlertDialog.Builder(activity).setCancelable(false);
-            builder.setTitle(R.string.tips).setMessage(R.string.dialog_github_start);
-            builder.setPositiveButton(R.string.goto_str, new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
+
+    private static final String KEY_NEVER_SHOW = "tips_never_show";
+
+    public static void showTipsDialog(Activity activity) {
+        if (AppManager.INSTANCE.getMSharedPreferences()
+                .getBoolean(KEY_NEVER_SHOW, false)) return;
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.tips)
+                .setMessage(R.string.tips_content)
+                .setNeutralButton(R.string.never_show, (dialog, which) -> {
+                    // Fix: save never show pref safely
                     try {
-                        dialog.dismiss();
+                        AppManager.INSTANCE.getMSharedPreferences()
+                                .edit().putBoolean(KEY_NEVER_SHOW, true).apply();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.cancel, (dialog, which) -> {
+                    // Fix: just dismiss — no crash
+                    dialog.dismiss();
+                })
+                .setPositiveButton(R.string.go_to, (dialog, which) -> {
+                    // Fix: wrap in try/catch + FLAG_ACTIVITY_NEW_TASK
+                    try {
                         Intent intent = new Intent(Intent.ACTION_VIEW,
                                 Uri.parse("https://github.com/andvipgroup/VCamera"));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         activity.startActivity(intent);
-                    } catch (Throwable e) {
-                        e.printStackTrace();
-                        ToastUtils.showToast("open failed.");
-                    }
-                }
-            });
-            builder.setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    try {
-                        dialog.dismiss();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
-                }
-            });
-            if (check) {
-                builder.setNeutralButton(R.string.never_show, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        try {
-                            dialog.dismiss();
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                        }
-                        MultiPreferences.getInstance().setBoolean("show_start_dialog", false);
-                    }
-                });
-            }
-            AlertDialog alertDialog = builder.show();
-            alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextAppearance(R.style.VCameraDialog);
-            alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextAppearance(R.style.VCameraDialog);
-            alertDialog.show();
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+                    dialog.dismiss();
+                })
+                .setCancelable(true)
+                .show();
     }
 }

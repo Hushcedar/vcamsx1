@@ -87,4 +87,6 @@
     <string name="goto_str">Goto</string>
     <string name="cancle">Cancle</string>
     <string name="audio_enable">Audio Enable:</string>
+    <string name="tips_content">This is an open source project. Welcome to Star my project.</string>
+    <string name="go_to">GOTO</string>
 </resources>
