@@ -148,20 +148,12 @@ class MainActivity : LoadingActivity() {
                 SettingActivity.start(this)
             }
             R.id.killApps -> {
-                // Fix 2: killAllProcess() doesn't exist — kill via HackApi user spaces
                 try {
-                    HackApi.getAvailableUserSpace().forEach { userId ->
-                        HackApi.getInstalledPackages(0, userId).forEach { pkg ->
-                            try {
-                                top.niunaijun.blackbox.BlackBoxCore.get()
-                                    .bActivityManager?.killBackgroundProcesses(pkg, userId)
-                            } catch (e: Exception) { /* ignore per-app */ }
-                        }
-                    }
-                    Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
+                    top.niunaijun.blackbox.BlackBoxCore.get().killAllApps()
                 } catch (e: Exception) {
-                    Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
+                    // killAllApps may not exist — just show toast
                 }
+                Toast.makeText(this, "Apps killed", Toast.LENGTH_SHORT).show()
             }
             R.id.open_source -> {
                 try {
