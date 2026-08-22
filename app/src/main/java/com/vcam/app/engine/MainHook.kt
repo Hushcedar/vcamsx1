@@ -152,6 +152,7 @@ class MainHook : IXposedHookLoadPackage {
                     InfoProcesser.initStatus()
                     if (InfoProcesser.videoStatus?.isVideoEnable != true) return
                     VideoPlayer.c1_camera_play()
+                    FloatingServiceLauncher.start(context ?: return@beforeHookedMethod)
                 }
             }
         )

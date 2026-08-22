@@ -49,10 +49,10 @@ class VideoSurfaceTransformer(
         )
 
         private val QUAD_TEXCOORDS = floatArrayOf(
-            0f, 0f,
-            1f, 0f,
             0f, 1f,
-            1f, 1f
+            1f, 1f,
+            0f, 0f,
+            1f, 0f
         )
 
         private val IDENTITY = floatArrayOf(
@@ -133,7 +133,6 @@ class VideoSurfaceTransformer(
         val mvp = FloatArray(16)
         android.opengl.Matrix.setIdentityM(mvp, 0)
 
-        android.opengl.Matrix.scaleM(mvp, 0, 1f, -1f, 1f)
         android.opengl.Matrix.scaleM(mvp, 0, glScale, glScale, 1f)
         if (rotationDeg != 0)
             android.opengl.Matrix.rotateM(mvp, 0, rotationDeg.toFloat(), 0f, 0f, 1f)
