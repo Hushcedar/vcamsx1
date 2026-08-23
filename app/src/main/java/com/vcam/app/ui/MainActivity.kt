@@ -1,6 +1,7 @@
 package com.vcam.app.ui
 
 import android.Manifest
+import android.app.Dialog
 import android.app.ProgressDialog
 import android.content.Intent
 import android.net.Uri
@@ -8,12 +9,14 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.view.Window
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import com.vcam.app.R
 import com.vcam.app.engine.VCamPrefs
+import com.vcam.app.engine.VideoControlReceiver
 import java.io.File
 import java.io.FileOutputStream
 
@@ -35,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchNetAudio: SwitchCompat
     private lateinit var btnSave:        Button
     private lateinit var btnOverlay:     Button
+    private lateinit var btnControls:    Button
 
     private var selectedUri: Uri? = null
     private var currentMethod = VCamPrefs.TYPE_DISABLED
@@ -69,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         switchNetAudio = findViewById(R.id.switch_net_audio)
         btnSave        = findViewById(R.id.btn_save)
         btnOverlay     = findViewById(R.id.btn_overlay)
+        btnControls    = findViewById(R.id.btn_controls)
 
         switchEnable.setOnCheckedChangeListener { _, on ->
             cardMethod.visibility = if (on) View.VISIBLE else View.GONE
@@ -80,6 +85,63 @@ class MainActivity : AppCompatActivity() {
         btnPickVideo.setOnClickListener { videoPicker.launch("video/*") }
         btnSave.setOnClickListener    { save() }
         btnOverlay.setOnClickListener { overlay() }
+        btnControls.setOnClickListener { showControlsDialog() }
+    }
+
+    private fun showControlsDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.layout_controls_dialog)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        fun send(action: String, dx: Int = 0, dy: Int = 0) {
+            val i = android.content.Intent(action).apply {
+                addFlags(android.content.Intent.FLAG_RECEIVER_FOREGROUND)
+                if (action == VideoControlReceiver.ACTION_ADJUST) {
+                    putExtra("dx", dx); putExtra("dy", dy)
+                }
+            }
+            sendBroadcast(i)
+        }
+
+        dialog.findViewById<Button>(R.id.btn_pause).setOnClickListener {
+            send(VideoControlReceiver.ACTION_PAUSE)
+        }
+        dialog.findViewById<Button>(R.id.btn_reload).setOnClickListener {
+            send(VideoControlReceiver.ACTION_RELOAD)
+        }
+        dialog.findViewById<Button>(R.id.btn_rotate).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ROTATE)
+        }
+        dialog.findViewById<Button>(R.id.btn_flip).setOnClickListener {
+            send(VideoControlReceiver.ACTION_FLIP)
+        }
+        dialog.findViewById<Button>(R.id.btn_zoom_in).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ZOOM_IN)
+        }
+        dialog.findViewById<Button>(R.id.btn_zoom_out).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ZOOM_OUT)
+        }
+        dialog.findViewById<Button>(R.id.btn_up).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ADJUST, 0, -40)
+        }
+        dialog.findViewById<Button>(R.id.btn_down).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ADJUST, 0, 40)
+        }
+        dialog.findViewById<Button>(R.id.btn_left).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ADJUST, -40, 0)
+        }
+        dialog.findViewById<Button>(R.id.btn_right).setOnClickListener {
+            send(VideoControlReceiver.ACTION_ADJUST, 40, 0)
+        }
+        dialog.findViewById<Button>(R.id.btn_reset).setOnClickListener {
+            send(VideoControlReceiver.ACTION_RESET_TRANSFORM)
+        }
+        dialog.findViewById<Button>(R.id.btn_close_dialog).setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     private fun load() {
