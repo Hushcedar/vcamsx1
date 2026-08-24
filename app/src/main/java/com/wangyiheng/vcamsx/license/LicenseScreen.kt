@@ -38,8 +38,12 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
             Text(if (status == LicenseStatus.CHEATER) "⛔" else "🎥", fontSize = 52.sp)
             Text("VCamSX", color = text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
 
-            Card(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp),
-                 CardDefaults.cardColors(containerColor = card)) {
+            // ── Status banner ─────────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = card)
+            ) {
                 Column(Modifier.padding(20.dp),
                        horizontalAlignment = Alignment.CenterHorizontally,
                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -52,9 +56,12 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                         is LicenseStatus.TRIAL -> {
                             Text("Free Trial Active", color = green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                             Text("${status.daysLeft} days remaining", color = text, fontSize = 15.sp)
-                            Button(onClick = onUnlocked, Modifier.fillMaxWidth().height(46.dp),
-                                   RoundedCornerShape(12.dp),
-                                   ButtonDefaults.buttonColors(containerColor = accent)) {
+                            Button(
+                                onClick = onUnlocked,
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = accent)
+                            ) {
                                 Text("Open App", color = Color(0xFF0A0A0A), fontWeight = FontWeight.Bold)
                             }
                         }
@@ -75,19 +82,26 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                 }
             }
 
+            // ── Key entry — not shown to cheaters ─────────────────────────────
             if (status != LicenseStatus.CHEATER) {
-                Card(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp),
-                     CardDefaults.cardColors(containerColor = card)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = card)
+                ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("License Key", color = text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         OutlinedTextField(
                             value = keyInput,
                             onValueChange = { keyInput = it; errorMsg = "" },
                             placeholder = { Text("XXXX-XXXX-XXXX-XXXX", color = subtext) },
-                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = text, containerColor = Color.Transparent,
-                                cursorColor = accent, focusedBorderColor = accent,
+                                textColor = text,
+                                containerColor = Color.Transparent,
+                                cursorColor = accent,
+                                focusedBorderColor = accent,
                                 unfocusedBorderColor = Color(0xFF1A1A1A)
                             )
                         )
@@ -118,8 +132,12 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                 }
             }
 
-            Card(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp),
-                 CardDefaults.cardColors(containerColor = card)) {
+            // ── Device ID ─────────────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = card)
+            ) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Your Device ID (share this to get a key):", color = subtext, fontSize = 11.sp)
                     Text(deviceId, color = text, fontSize = 13.sp,
