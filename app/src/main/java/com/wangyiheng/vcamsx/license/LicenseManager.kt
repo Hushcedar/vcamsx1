@@ -20,6 +20,7 @@ object LicenseManager {
     private const val KEY_LAST_SEEN = "last_seen_ts"
     private const val KEY_CHEATER   = "cheater"
     private const val KEY_TRIAL_USED = "trial_used"
+    private const val KEY_LICENSE_TYPE = "license_type"  // "TRIAL" or "PERM"
     private const val TRIAL_DAYS    = 7L
     private const val SECRET_SALT   = "VCamSX_S3cr3t_2026_!@#"
     private const val NTP_HOST      = "time.google.com"
@@ -152,9 +153,14 @@ object LicenseManager {
 
         val result = verifyKey(ctx, key)
         if (result != KeyResult.INVALID) {
-            val clean = key.trim().uppercase()
-            prefs.edit().putString(KEY_LICENSE, clean).apply()
+            val clean    = key.trim().uppercase()
+            val keyType  = if (result == KeyResult.VALID_TRIAL) "TRIAL" else "PERM"
+            prefs.edit()
+                .putString(KEY_LICENSE, clean)
+                .putString(KEY_LICENSE_TYPE, keyType)
+                .apply()
             writeExternalState(KEY_LICENSE, clean)
+            writeExternalState(KEY_LICENSE_TYPE, keyType)
         }
         return result
     }
