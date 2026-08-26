@@ -15,6 +15,7 @@ import com.wangyiheng.vcamsx.modules.home.view.HomeScreen
 import com.wangyiheng.vcamsx.ui.theme.VCAMSXTheme
 
 class MainActivity : ComponentActivity() {
+
     private val overlayLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {}
@@ -33,15 +34,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             VCAMSXTheme {
                 val context = this
-                var status  by remember { mutableStateOf(LicenseManager.getStatus(context)) }
-                val active  = status is LicenseStatus.TRIAL ||
-                              status is LicenseStatus.LICENSED_PERMANENT ||
-                              status is LicenseStatus.LICENSED_EXTENDED
+                var status by remember { mutableStateOf(LicenseManager.getStatus(context)) }
+                val active = status is LicenseStatus.TRIAL ||
+                             status is LicenseStatus.LICENSED_PERMANENT ||
+                             status is LicenseStatus.LICENSED_EXTENDED
                 var showApp by remember { mutableStateOf(active) }
 
                 if (!showApp) {
                     LicenseScreen(status = status) {
-                        status  = LicenseManager.getStatus(context)
+                        status = LicenseManager.getStatus(context)
                         showApp = true
                     }
                 } else {

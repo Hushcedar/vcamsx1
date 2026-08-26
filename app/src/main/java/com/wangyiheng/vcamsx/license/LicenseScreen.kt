@@ -60,7 +60,7 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                         }
                         is LicenseStatus.TRIAL -> {
                             Text("Free Trial Active", color = green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("${status.daysLeft} days remaining", color = text, fontSize = 15.sp)
+                            Text("${status.minsLeft} minutes remaining", color = text, fontSize = 15.sp)
                             Button(
                                 onClick = onUnlocked,
                                 modifier = Modifier.fillMaxWidth().height(46.dp),
@@ -72,7 +72,7 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                         }
                         LicenseStatus.EXPIRED -> {
                             Text("Trial Expired", color = red, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text("Your 7-day trial has ended.\nEnter a license key to continue.",
+                            Text("Your trial has ended.\nEnter a license key to continue.",
                                 color = subtext, fontSize = 13.sp, textAlign = TextAlign.Center)
                         }
                         LicenseStatus.CHEATER -> {
@@ -116,12 +116,11 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                         Button(
                             onClick = {
                                 when (LicenseManager.activateKey(context, keyInput)) {
-                                    KeyResult.VALID_TRIAL -> {
-                                        LicenseManager.startTrial(context)
-                                        onUnlocked()
-                                    }
-                                    KeyResult.VALID_PERMANENT, KeyResult.VALID_TRIAL_EXT -> onUnlocked()
-                                    KeyResult.INVALID -> errorMsg = "Invalid key. Contact support to get a key."
+                                    KeyResult.VALID_PERMANENT -> onUnlocked()
+                                    KeyResult.VALID_TRIAL     -> onUnlocked()
+                                    KeyResult.ALREADY_USED    -> errorMsg = "This key has already been used on this device."
+                                    KeyResult.EXPIRED         -> errorMsg = "This key has expired. Request a new one."
+                                    KeyResult.INVALID         -> errorMsg = "Invalid key. Check and try again."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(46.dp),
