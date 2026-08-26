@@ -151,7 +151,6 @@ object LicenseManager {
         return "${h.substring(0,4)}-${h.substring(4,8)}-${h.substring(8,12)}-${h.substring(12,16)}"
     }
 
-    private fun today() = (System.currentTimeMillis() / 86_400_000L).toInt()
 }
 
 sealed class LicenseStatus {
