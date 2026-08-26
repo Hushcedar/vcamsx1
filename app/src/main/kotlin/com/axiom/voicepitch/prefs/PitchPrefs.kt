@@ -9,9 +9,9 @@ object PitchPrefs {
     const val KEY_SEMITONES = "semitones"
     const val KEY_ENABLED   = "enabled"
 
-    // ── Written by SettingsActivity (MODE_WORLD_READABLE so the hook can read it) ──
+    // UI side — plain MODE_PRIVATE, no world-readable
     fun get(ctx: Context): SharedPreferences =
-        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_WORLD_READABLE)
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun isEnabled(prefs: SharedPreferences) =
         prefs.getBoolean(KEY_ENABLED, true)
