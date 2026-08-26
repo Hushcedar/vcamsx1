@@ -25,8 +25,6 @@ object LicenseManager {
 
     private fun nowMin(): Int = (System.currentTimeMillis() / 60_000L).toInt()
 
-    // ─── Init ─────────────────────────────────────────────────────────────────
-
     fun init(ctx: Context) {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_CHEATER, false)) return
@@ -34,13 +32,11 @@ object LicenseManager {
         val now     = nowMin()
         val lastMin = prefs.getInt(KEY_LAST_MIN, now)
 
-        // Rollback: clock went back more than 2 minutes
         if (now < lastMin - 2) {
             prefs.edit().putBoolean(KEY_CHEATER, true).apply()
             return
         }
 
-        // NTP check
         val ntpMin = getNtpMin()
         if (ntpMin != null && ntpMin > lastMin && now < lastMin) {
             prefs.edit().putBoolean(KEY_CHEATER, true).apply()
@@ -49,8 +45,6 @@ object LicenseManager {
 
         prefs.edit().putInt(KEY_LAST_MIN, maxOf(now, ntpMin ?: now)).apply()
     }
-
-    // ─── Status ───────────────────────────────────────────────────────────────
 
     fun getStatus(ctx: Context): LicenseStatus {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -83,15 +77,12 @@ object LicenseManager {
         else -> false
     }
 
-    // ─── Activate ─────────────────────────────────────────────────────────────
-
     fun activateKey(ctx: Context, key: String): KeyResult {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_CHEATER, false)) return KeyResult.INVALID
 
         val clean = key.trim().uppercase().replace("-", "")
 
-        // Check if key was already used on this device
         val usedKeys = prefs.getString(KEY_USED_KEYS, "") ?: ""
         val keyHash  = sha256(clean).take(12)
         if (usedKeys.split("|").contains(keyHash)) return KeyResult.ALREADY_USED
@@ -103,7 +94,6 @@ object LicenseManager {
                 KeyResult.VALID_PERMANENT
             }
             is VerifyResult.Trial -> {
-                // Check not expired before accepting
                 val r = verifyKey(ctx, clean) as VerifyResult.Trial
                 val elapsed = nowMin() - r.issuedMin
                 if (elapsed >= TRIAL_MINUTES) return KeyResult.EXPIRED
@@ -124,8 +114,6 @@ object LicenseManager {
         prefs.edit().putString(KEY_USED_KEYS, updated).apply()
     }
 
-    // ─── Verify ───────────────────────────────────────────────────────────────
-
     private sealed class VerifyResult {
         object Permanent                      : VerifyResult()
         data class Trial(val issuedMin: Int)  : VerifyResult()
@@ -142,7 +130,6 @@ object LicenseManager {
         if (clean == sha256("${SECRET_SALT}UNIVERSAL").take(16).uppercase())
             return VerifyResult.Permanent
 
-        // Scan back SCAN_WINDOW minutes to find issue minute
         val now = nowMin()
         for (ago in 0..SCAN_WINDOW) {
             val issueMin = now - ago
@@ -152,8 +139,6 @@ object LicenseManager {
 
         return VerifyResult.Invalid
     }
-
-    // ─── NTP ─────────────────────────────────────────────────────────────────
 
     private fun getNtpMin(): Int? = try {
         val socket = DatagramSocket().also { it.soTimeout = 3000 }
@@ -167,8 +152,6 @@ object LicenseManager {
         (unixMs / 60_000L).toInt()
     } catch (e: Exception) { null }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
     fun getDeviceId(ctx: Context): String =
         Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID)
             ?.uppercase() ?: "UNKNOWN"
@@ -177,8 +160,6 @@ object LicenseManager {
         MessageDigest.getInstance("SHA-256")
             .digest(input.toByteArray())
             .joinToString("") { "%02x".format(it) }
-
-    // ─── Key generators (run on your machine) ────────────────────────────────
 
     fun generateTrialKey(deviceId: String, minsAgo: Int = 0): String {
         val issuedMin = nowMin() - minsAgo
@@ -195,8 +176,6 @@ object LicenseManager {
         val h = sha256("${SECRET_SALT}UNIVERSAL").take(16).uppercase()
         return "${h.substring(0,4)}-${h.substring(4,8)}-${h.substring(8,12)}-${h.substring(12,16)}"
     }
-
-    private fun nowMin() = (System.currentTimeMillis() / 60_000L).toInt()
 }
 
 sealed class LicenseStatus {
