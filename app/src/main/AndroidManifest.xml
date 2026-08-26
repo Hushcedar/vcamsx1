@@ -4,15 +4,13 @@
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.VoicePitch">
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposeddescription" android:value="Real-time voice pitch shifter — WhatsApp · Telegram · Discord · Signal" />
         <meta-data android:name="xposedminversion" android:value="53" />
-        <activity
-            android:name=".ui.SettingsActivity"
-            android:exported="true"
-            android:label="@string/app_name">
+        <activity android:name=".ui.SettingsActivity" android:exported="true" android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
