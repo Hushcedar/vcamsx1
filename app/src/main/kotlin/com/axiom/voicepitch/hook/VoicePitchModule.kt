@@ -20,20 +20,23 @@ class VoicePitchModule : IXposedHookLoadPackage {
             "org.telegram.messenger",
             "org.telegram.messenger.beta",
             "com.discord",
-            "org.thoughtcrime.securesms"
+            "org.thoughtcrime.securesms",
+            "com.jy.x.separation.manager"   // MochieCloner
         )
         private const val TAG = "[AxiomPitch]"
+        private var hookFireCount = 0
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName !in TARGETS) return
-        XposedBridge.log("$TAG Attaching to ${lpparam.packageName}")
+        XposedBridge.log("$TAG ✅ LOADED into ${lpparam.packageName}")
         hookAllAudioRecordVariants(lpparam)
     }
 
     private fun hookAllAudioRecordVariants(lpparam: XC_LoadPackage.LoadPackageParam) {
         val ar = XposedHelpers.findClass("android.media.AudioRecord", lpparam.classLoader)
 
+        // Variant 1: read(byte[], int, int)
         XposedHelpers.findAndHookMethod(ar, "read",
             ByteArray::class.java, Int::class.java, Int::class.java,
             object : XC_MethodHook() {
@@ -41,12 +44,17 @@ class VoicePitchModule : IXposedHookLoadPackage {
                     val n = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = readSemitones(param.thisObject) ?: return
+                    hookFireCount++
+                    XposedBridge.log("$TAG 🔥 HOOK FIRED (byte[]) n=$n st=$st fires=$hookFireCount")
                     val buf = param.args[0] as ByteArray
-                    val out = PsolaEngine.shiftBytes(buf, n, st, sampleRate(param.thisObject))
+                    val sr  = sampleRate(param.thisObject)
+                    val out = PsolaEngine.shiftBytes(buf, n, st, sr)
+                    XposedBridge.log("$TAG   shiftBytes in=$n out=${out.size} sr=$sr")
                     System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
                 }
             })
 
+        // Variant 2: read(short[], int, int)
         XposedHelpers.findAndHookMethod(ar, "read",
             ShortArray::class.java, Int::class.java, Int::class.java,
             object : XC_MethodHook() {
@@ -54,12 +62,15 @@ class VoicePitchModule : IXposedHookLoadPackage {
                     val n = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = readSemitones(param.thisObject) ?: return
+                    hookFireCount++
+                    XposedBridge.log("$TAG 🔥 HOOK FIRED (short[]) n=$n st=$st fires=$hookFireCount")
                     val buf = param.args[0] as ShortArray
                     val out = PsolaEngine.shiftShorts(buf, n, st)
                     System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
                 }
             })
 
+        // Variant 3: read(ByteBuffer, int)
         XposedHelpers.findAndHookMethod(ar, "read",
             ByteBuffer::class.java, Int::class.java,
             object : XC_MethodHook() {
@@ -67,8 +78,10 @@ class VoicePitchModule : IXposedHookLoadPackage {
                     val n = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = readSemitones(param.thisObject) ?: return
-                    val bb = param.args[0] as ByteBuffer
-                    val sr = sampleRate(param.thisObject)
+                    hookFireCount++
+                    XposedBridge.log("$TAG 🔥 HOOK FIRED (ByteBuffer) n=$n st=$st fires=$hookFireCount")
+                    val bb  = param.args[0] as ByteBuffer
+                    val sr  = sampleRate(param.thisObject)
                     val pos = bb.position()
                     val raw = ByteArray(n)
                     bb.position(pos - n); bb.get(raw)
@@ -79,6 +92,7 @@ class VoicePitchModule : IXposedHookLoadPackage {
                 }
             })
 
+        // Variant 4: read(byte[], int, int, int) API 23+
         XposedHelpers.findAndHookMethod(ar, "read",
             ByteArray::class.java, Int::class.java, Int::class.java, Int::class.java,
             object : XC_MethodHook() {
@@ -86,12 +100,15 @@ class VoicePitchModule : IXposedHookLoadPackage {
                     val n = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = readSemitones(param.thisObject) ?: return
+                    hookFireCount++
+                    XposedBridge.log("$TAG 🔥 HOOK FIRED (byte[],readMode) n=$n st=$st fires=$hookFireCount")
                     val buf = param.args[0] as ByteArray
                     val out = PsolaEngine.shiftBytes(buf, n, st, sampleRate(param.thisObject))
                     System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
                 }
             })
 
+        // Variant 5: read(short[], int, int, int) API 23+
         XposedHelpers.findAndHookMethod(ar, "read",
             ShortArray::class.java, Int::class.java, Int::class.java, Int::class.java,
             object : XC_MethodHook() {
@@ -99,16 +116,17 @@ class VoicePitchModule : IXposedHookLoadPackage {
                     val n = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = readSemitones(param.thisObject) ?: return
+                    hookFireCount++
+                    XposedBridge.log("$TAG 🔥 HOOK FIRED (short[],readMode) n=$n st=$st fires=$hookFireCount")
                     val buf = param.args[0] as ShortArray
                     val out = PsolaEngine.shiftShorts(buf, n, st)
                     System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
                 }
             })
 
-        XposedBridge.log("$TAG All hooks installed for ${lpparam.packageName}")
+        XposedBridge.log("$TAG ✅ All 5 AudioRecord hooks armed for ${lpparam.packageName}")
     }
 
-    // Hook reads prefs via createPackageContext — MODE_PRIVATE, no world-readable needed
     private fun readSemitones(audioRecord: Any): Float? {
         return try {
             val targetCtx = XposedHelpers.callStaticMethod(
@@ -120,15 +138,16 @@ class VoicePitchModule : IXposedHookLoadPackage {
                 "com.axiom.voicepitch",
                 Context.CONTEXT_IGNORE_SECURITY
             )
-            // createPackageContext gives us access to our own private prefs
             val prefs: SharedPreferences = ourCtx.getSharedPreferences(
                 PitchPrefs.PREFS_NAME, Context.MODE_PRIVATE
             )
-            if (!PitchPrefs.isEnabled(prefs)) return null
-            val st = PitchPrefs.getSemitones(prefs)
+            val enabled = PitchPrefs.isEnabled(prefs)
+            val st      = PitchPrefs.getSemitones(prefs)
+            XposedBridge.log("$TAG   prefs OK enabled=$enabled semitones=$st")
+            if (!enabled) return null
             if (kotlin.math.abs(st) < 0.05f) null else st
         } catch (t: Throwable) {
-            XposedBridge.log("$TAG prefs read failed: ${t.message}")
+            XposedBridge.log("$TAG ❌ prefs read FAILED: ${t.message}")
             null
         }
     }
