@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFFFF"
+    android:padding="0dp">
+
+    <!-- Channel selector dropdown header -->
+    <Spinner
+        android:id="@+id/spinner_channel"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/teal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"/>
+
+    <!-- Controls panel -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Size -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="40dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Size:" android:textColor="#FF333333" android:textSize="14sp"/>
+            <ImageButton android:id="@+id/btn_size_minus"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:src="@android:drawable/ic_delete"
+                android:background="#FFEEEEEE" android:padding="6dp"/>
+            <SeekBar android:id="@+id/seek_size"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="200" android:progress="100"
+                android:progressTint="@color/teal" android:thumbTint="@color/teal"
+                android:layout_marginStart="4dp" android:layout_marginEnd="4dp"/>
+            <ImageButton android:id="@+id/btn_size_plus"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:src="@android:drawable/ic_input_add"
+                android:background="#FFEEEEEE" android:padding="6dp"/>
+        </LinearLayout>
+
+        <!-- Zoom -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="40dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Zoom:" android:textColor="#FF333333" android:textSize="14sp"/>
+            <ImageButton android:id="@+id/btn_zoom_minus"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:src="@android:drawable/ic_delete"
+                android:background="#FFEEEEEE" android:padding="6dp"/>
+            <SeekBar android:id="@+id/seek_zoom"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="200" android:progress="100"
+                android:progressTint="@color/teal" android:thumbTint="@color/teal"
+                android:layout_marginStart="4dp" android:layout_marginEnd="4dp"/>
+            <ImageButton android:id="@+id/btn_zoom_plus"
+                android:layout_width="36dp" android:layout_height="36dp"
+                android:src="@android:drawable/ic_input_add"
+                android:background="#FFEEEEEE" android:padding="6dp"/>
+        </LinearLayout>
+
+        <!-- Rotate + Screen -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Rotate:" android:textColor="#FF333333" android:textSize="14sp"/>
+            <ImageButton android:id="@+id/btn_rotate"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:background="#FFEEEEEE" android:padding="8dp"
+                android:tint="@color/red_save"/>
+            <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Screen:" android:textColor="#FF333333" android:textSize="14sp"/>
+            <ImageButton android:id="@+id/btn_screen"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:src="@android:drawable/ic_menu_gallery"
+                android:background="#FFEEEEEE" android:padding="8dp"
+                android:tint="@color/red_save"/>
+        </LinearLayout>
+
+        <!-- Flip -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="14dp">
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Flip:" android:textColor="#FF333333" android:textSize="14sp"/>
+            <Spinner android:id="@+id/spinner_flip"
+                android:layout_width="180dp" android:layout_height="38dp"
+                android:background="@color/red_save" android:paddingStart="8dp"/>
+        </LinearLayout>
+
+        <!-- Move D-pad -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="60dp" android:layout_height="wrap_content"
+                android:text="Move:" android:textColor="#FF333333" android:textSize="14sp"/>
+
+            <!-- Circular D-pad -->
+            <RelativeLayout android:layout_width="160dp" android:layout_height="160dp">
+                <Button android:id="@+id/btn_up"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:text="▲" android:textSize="16sp"
+                    android:backgroundTint="#FF009688"
+                    android:layout_centerHorizontal="true"
+                    android:layout_alignParentTop="true"/>
+                <Button android:id="@+id/btn_left"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:text="◄" android:textSize="16sp"
+                    android:backgroundTint="#FF009688"
+                    android:layout_centerVertical="true"
+                    android:layout_alignParentStart="true"/>
+                <Button android:id="@+id/btn_center"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:text="⊙" android:textSize="14sp"
+                    android:backgroundTint="#FF777777"
+                    android:layout_centerInParent="true"/>
+                <Button android:id="@+id/btn_right"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:text="►" android:textSize="16sp"
+                    android:backgroundTint="#FF009688"
+                    android:layout_centerVertical="true"
+                    android:layout_alignParentEnd="true"/>
+                <Button android:id="@+id/btn_down"
+                    android:layout_width="44dp" android:layout_height="44dp"
+                    android:text="▼" android:textSize="16sp"
+                    android:backgroundTint="#FF009688"
+                    android:layout_centerHorizontal="true"
+                    android:layout_alignParentBottom="true"/>
+            </RelativeLayout>
+        </LinearLayout>
+
+        <!-- Pause / Reload row -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginTop="14dp">
+            <Button android:id="@+id/btn_pause"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="44dp" android:text="⏸ Pause"
+                android:backgroundTint="@color/teal" android:layout_marginEnd="6dp"/>
+            <Button android:id="@+id/btn_reload"
+                android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="44dp" android:text="↺ Reload"
+                android:backgroundTint="@color/teal"/>
+        </LinearLayout>
+
+        <Button android:id="@+id/btn_dismiss"
+            android:layout_width="match_parent" android:layout_height="44dp"
+            android:text="Dismiss Dialog"
+            android:backgroundTint="#FF888888"
+            android:textColor="#FFFFFFFF"
+            android:layout_marginTop="8dp"/>
+    </LinearLayout>
+</LinearLayout>

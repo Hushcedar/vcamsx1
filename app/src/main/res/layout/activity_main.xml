@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFFFF">
+
+    <!-- Teal header bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/teal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Virtual Camera Setting"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Privacy label -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Protect Your Camera Privacy."
+                android:textColor="#FF333333"
+                android:textSize="13sp"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="6dp"/>
+
+            <!-- Method spinner -->
+            <Spinner
+                android:id="@+id/spinner_method"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@color/teal"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:popupBackground="@color/teal"/>
+
+            <!-- Hint text -->
+            <TextView
+                android:id="@+id/tv_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="(Video Size should match target app require,\nOtherwise the display will be abnormal or black screen.)"
+                android:textColor="#FF555555"
+                android:textSize="12sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="6dp"/>
+
+            <!-- Local video section -->
+            <LinearLayout
+                android:id="@+id/layout_local"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Video File:"
+                    android:textColor="#FF333333"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:id="@+id/tv_video_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:gravity="center_vertical"
+                    android:text="No file selected"
+                    android:textColor="#FF666666"
+                    android:textSize="13sp"
+                    android:singleLine="true"
+                    android:ellipsize="middle"
+                    android:background="#FFEEEEEE"
+                    android:paddingStart="8dp"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_pick_video"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="Browse Video File"
+                    android:backgroundTint="@color/teal"
+                    android:textColor="#FFFFFFFF"/>
+            </LinearLayout>
+
+            <!-- Image section -->
+            <LinearLayout
+                android:id="@+id/layout_image"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Image File:"
+                    android:textColor="#FF333333"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="4dp"/>
+
+                <TextView
+                    android:id="@+id/tv_image_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:gravity="center_vertical"
+                    android:text="No file selected"
+                    android:textColor="#FF666666"
+                    android:textSize="13sp"
+                    android:singleLine="true"
+                    android:ellipsize="middle"
+                    android:background="#FFEEEEEE"
+                    android:paddingStart="8dp"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_pick_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="Browse Image File"
+                    android:backgroundTint="@color/teal"
+                    android:textColor="#FFFFFFFF"/>
+            </LinearLayout>
+
+            <!-- Network section -->
+            <LinearLayout
+                android:id="@+id/layout_network"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Stream URL:"
+                    android:textColor="#FF333333"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="4dp"/>
+
+                <EditText
+                    android:id="@+id/et_network_url"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:hint="rtmp:// or http://"
+                    android:inputType="textUri"
+                    android:textSize="13sp"
+                    android:background="#FFEEEEEE"
+                    android:paddingStart="8dp"/>
+            </LinearLayout>
+
+            <!-- Audio toggle -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:layout_marginTop="12dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Enable Audio:"
+                    android:textColor="#FF333333"
+                    android:textSize="15sp"/>
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switch_audio"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:thumbTint="@color/teal"
+                    android:trackTint="@color/teal"/>
+            </LinearLayout>
+
+            <!-- Save button -->
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:text="Save"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:backgroundTint="@color/red_save"
+                android:textColor="#FFFFFFFF"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"/>
+
+            <!-- Controls button -->
+            <Button
+                android:id="@+id/btn_controls"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="🎮  Camera Channel Controls"
+                android:textSize="14sp"
+                android:backgroundTint="@color/teal"
+                android:textColor="#FFFFFFFF"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="24dp"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,5 @@
+-keep class com.vcam.app.engine.** { *; }
+-keep class de.robv.android.xposed.** { *; }
+-keep class tv.danmaku.** { *; }
+-dontwarn de.robv.android.xposed.**
+-dontwarn tv.danmaku.**

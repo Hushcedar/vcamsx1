@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFFFF"
+    android:padding="16dp">
+
+    <!-- Size row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Size:" android:textSize="15sp" android:textColor="#FF333333"/>
+        <ImageButton android:id="@+id/btn_size_minus"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_input_delete"
+            android:background="@android:color/transparent"/>
+        <SeekBar android:id="@+id/seek_size"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:max="100" android:progress="50"
+            android:progressTint="@color/teal" android:thumbTint="@color/teal"/>
+        <ImageButton android:id="@+id/btn_size_plus"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_add"
+            android:background="@android:color/transparent"/>
+    </LinearLayout>
+
+    <!-- Zoom row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Zoom:" android:textSize="15sp" android:textColor="#FF333333"/>
+        <ImageButton android:id="@+id/btn_zoom_minus"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_input_delete"
+            android:background="@android:color/transparent"/>
+        <SeekBar android:id="@+id/seek_zoom"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:max="100" android:progress="50"
+            android:progressTint="@color/teal" android:thumbTint="@color/teal"/>
+        <ImageButton android:id="@+id/btn_zoom_plus"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_add"
+            android:background="@android:color/transparent"/>
+    </LinearLayout>
+
+    <!-- Rotate and Screen row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Rotate:" android:textSize="15sp" android:textColor="#FF333333"/>
+        <ImageButton android:id="@+id/btn_rotate"
+            android:layout_width="52dp" android:layout_height="52dp"
+            android:src="@drawable/ic_camera"
+            android:backgroundTint="#00000000"
+            android:tint="#FFCC0000"/>
+        <Space android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Screen:" android:textSize="15sp" android:textColor="#FF333333"/>
+        <ImageButton android:id="@+id/btn_screen"
+            android:layout_width="52dp" android:layout_height="52dp"
+            android:src="@drawable/ic_camera"
+            android:backgroundTint="#00000000"
+            android:tint="#FFCC0000"/>
+    </LinearLayout>
+
+    <!-- Flip row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Flip:" android:textSize="15sp" android:textColor="#FF333333"/>
+        <Spinner android:id="@+id/spinner_flip"
+            android:layout_width="wrap_content" android:layout_height="40dp"
+            android:minWidth="160dp"
+            android:background="#FFCC0000"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:popupBackground="#FFFFFFFF"/>
+    </LinearLayout>
+
+    <!-- Move label -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+        <TextView android:layout_width="64dp" android:layout_height="wrap_content"
+            android:text="Move:" android:textSize="15sp" android:textColor="#FF333333"/>
+
+        <!-- D-pad circle -->
+        <FrameLayout android:layout_width="160dp" android:layout_height="160dp">
+
+            <!-- Up -->
+            <ImageButton android:id="@+id/btn_up"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_gravity="top|center_horizontal"
+                android:src="@android:drawable/arrow_up_float"
+                android:backgroundTint="#FF009688"
+                android:tint="#FFFFFFFF"/>
+
+            <!-- Left -->
+            <ImageButton android:id="@+id/btn_left"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_gravity="center_vertical|start"
+                android:src="@android:drawable/ic_media_previous"
+                android:backgroundTint="#FF009688"
+                android:tint="#FFFFFFFF"/>
+
+            <!-- Center reset -->
+            <ImageButton android:id="@+id/btn_center"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_gravity="center"
+                android:src="@android:drawable/ic_menu_compass"
+                android:backgroundTint="#FF009688"
+                android:tint="#FFFFFFFF"/>
+
+            <!-- Right -->
+            <ImageButton android:id="@+id/btn_right"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_gravity="center_vertical|end"
+                android:src="@android:drawable/ic_media_next"
+                android:backgroundTint="#FF009688"
+                android:tint="#FFFFFFFF"/>
+
+            <!-- Down -->
+            <ImageButton android:id="@+id/btn_down"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:layout_gravity="bottom|center_horizontal"
+                android:src="@android:drawable/arrow_down_float"
+                android:backgroundTint="#FF009688"
+                android:tint="#FFFFFFFF"/>
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>
