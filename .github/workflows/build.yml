@@ -2,9 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [ "master", "main", "david-engine" ]
+    branches: [ "vcam-full-ui" ]
   pull_request:
-    branches: [ "master", "main", "david-engine" ]
+    branches: [ "vcam-full-ui" ]
   workflow_dispatch:
 
 jobs:
@@ -48,7 +48,6 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: VCam-debug
