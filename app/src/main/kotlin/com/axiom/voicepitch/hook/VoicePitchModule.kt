@@ -14,10 +14,10 @@ import java.nio.ByteBuffer
 class VoicePitchModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
 
     companion object {
-        private const val TAG = "[AxiomPitch]"
+        private const val TAG        = "[AxiomPitch]"
+        private const val MOCHIE_PKG = "com.jy.x.separation.manager"
 
-        private val TARGETS = setOf(
-            "com.jy.x.separation.manager",  // MochieCloner — covers ALL cloned apps inside
+        private val DIRECT_TARGETS = setOf(
             "com.whatsapp",
             "com.whatsapp.w4b",
             "org.telegram.messenger",
@@ -27,102 +27,166 @@ class VoicePitchModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
         )
 
         private var xprefs: XSharedPreferences? = null
+        private var hooksInstalled = false
     }
 
     override fun initZygote(startupParam: IXposedHookZygoteInit.StartupParam) {
         xprefs = XSharedPreferences("com.axiom.voicepitch", PitchPrefs.PREFS_NAME)
         xprefs?.makeWorldReadable()
-        XposedBridge.log("$TAG Zygote init OK — prefs path: ${xprefs?.file?.absolutePath}")
+        XposedBridge.log("$TAG Zygote init — xprefs: ${xprefs?.file?.absolutePath}")
+        hookActivityThread()
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        val isMochie   = lpparam.packageName == "com.jy.x.separation.manager"
-        val isTarget   = lpparam.packageName in TARGETS
-        val isVirtual  = lpparam.processName.startsWith("com.jy.x.separation.manager")
+        val pkg  = lpparam.packageName
+        val proc = lpparam.processName
 
-        if (!isTarget && !isVirtual) return
-
-        XposedBridge.log("$TAG ✅ LOADED pkg=${lpparam.packageName} proc=${lpparam.processName} mochie=$isMochie virtual=$isVirtual")
-        installAudioHooks(lpparam)
+        when {
+            pkg in DIRECT_TARGETS -> {
+                XposedBridge.log("$TAG ✅ Direct target: $pkg")
+                installAudioHooks(lpparam.classLoader)
+            }
+            pkg == MOCHIE_PKG -> {
+                XposedBridge.log("$TAG ✅ MochieCloner main process")
+                installAudioHooks(lpparam.classLoader)
+            }
+            proc.startsWith(MOCHIE_PKG) -> {
+                XposedBridge.log("$TAG ✅ MochieCloner child via proc: $proc pkg: $pkg")
+                installAudioHooks(lpparam.classLoader)
+            }
+        }
     }
 
-    private fun installAudioHooks(lpparam: XC_LoadPackage.LoadPackageParam) {
-        val ar = XposedHelpers.findClass("android.media.AudioRecord", lpparam.classLoader)
+    private fun hookActivityThread() {
+        try {
+            val activityThreadClass = XposedHelpers.findClass(
+                "android.app.ActivityThread", null
+            )
 
-        XposedHelpers.findAndHookMethod(ar, "read",
-            ByteArray::class.java, Int::class.java, Int::class.java,
-            object : XC_MethodHook() {
+            XposedHelpers.findAndHookMethod(
+                activityThreadClass,
+                "handleBindApplication",
+                "android.app.ActivityThread\$AppBindData",
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        try {
+                            val appBindData  = param.args[0]
+                            val appInfo      = XposedHelpers.getObjectField(appBindData, "appInfo")
+                                ?: return
+                            val packageName  = XposedHelpers.getObjectField(appInfo, "packageName")
+                                as? String ?: return
+                            val processName  = XposedHelpers.getObjectField(appBindData, "processName")
+                                as? String ?: return
+
+                            XposedBridge.log("$TAG handleBindApplication pkg=$packageName proc=$processName")
+
+                            val isMochieChild = processName.startsWith(MOCHIE_PKG) ||
+                                                packageName.startsWith(MOCHIE_PKG)
+
+                            if (isMochieChild || packageName in DIRECT_TARGETS) {
+                                XposedBridge.log("$TAG 🎯 Injecting into: pkg=$packageName proc=$processName")
+                                val cl = Thread.currentThread().contextClassLoader
+                                    ?: VoicePitchModule::class.java.classLoader
+                                    ?: return
+                                installAudioHooks(cl)
+                            }
+                        } catch (t: Throwable) {
+                            XposedBridge.log("$TAG handleBindApplication error: ${t.message}")
+                        }
+                    }
+                }
+            )
+            XposedBridge.log("$TAG ActivityThread.handleBindApplication hooked ✅")
+        } catch (t: Throwable) {
+            XposedBridge.log("$TAG Failed to hook ActivityThread: ${t.message}")
+        }
+    }
+
+    private fun installAudioHooks(classLoader: ClassLoader?) {
+        if (hooksInstalled) {
+            XposedBridge.log("$TAG hooks already installed in this process, skipping")
+            return
+        }
+        hooksInstalled = true
+
+        try {
+            val ar = XposedHelpers.findClass("android.media.AudioRecord", classLoader)
+
+            val hook = object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
-                    val n = param.result as? Int ?: return
+                    val n  = param.result as? Int ?: return
                     if (n <= 0) return
                     val st = semitones() ?: return
-                    XposedBridge.log("$TAG 🔥 byte[] n=$n st=$st proc=${lpparam.processName}")
-                    val buf = param.args[0] as ByteArray
-                    val out = PsolaEngine.shiftBytes(buf, n, st, sr(param.thisObject))
-                    System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
+                    XposedBridge.log("$TAG 🔥 AudioRecord fired n=$n st=$st")
+                    when (val buf = param.args[0]) {
+                        is ByteArray -> {
+                            val out = PsolaEngine.shiftBytes(buf, n, st, sr(param.thisObject))
+                            System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
+                        }
+                        is ShortArray -> {
+                            val out = PsolaEngine.shiftShorts(buf, n, st)
+                            System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
+                        }
+                        is ByteBuffer -> {
+                            val pos = buf.position()
+                            val raw = ByteArray(n)
+                            buf.position(pos - n); buf.get(raw)
+                            val out = PsolaEngine.shiftBytes(raw, n, st, sr(param.thisObject))
+                            buf.position(pos - n)
+                            buf.put(out, 0, minOf(out.size, n))
+                            buf.position(pos)
+                        }
+                    }
                 }
-            })
+            }
 
-        XposedHelpers.findAndHookMethod(ar, "read",
-            ShortArray::class.java, Int::class.java, Int::class.java,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val n = param.result as? Int ?: return
-                    if (n <= 0) return
-                    val st = semitones() ?: return
-                    XposedBridge.log("$TAG 🔥 short[] n=$n st=$st proc=${lpparam.processName}")
-                    val buf = param.args[0] as ShortArray
-                    val out = PsolaEngine.shiftShorts(buf, n, st)
-                    System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
-                }
-            })
+            listOf(
+                arrayOf(ByteArray::class.java,  Int::class.java, Int::class.java),
+                arrayOf(ShortArray::class.java, Int::class.java, Int::class.java),
+                arrayOf(ByteBuffer::class.java, Int::class.java),
+                arrayOf(ByteArray::class.java,  Int::class.java, Int::class.java, Int::class.java),
+                arrayOf(ShortArray::class.java, Int::class.java, Int::class.java, Int::class.java),
+            ).forEach { sig ->
+                try {
+                    XposedHelpers.findAndHookMethod(ar, "read", *sig, hook)
+                } catch (_: Throwable) {}
+            }
 
-        XposedHelpers.findAndHookMethod(ar, "read",
-            ByteBuffer::class.java, Int::class.java,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val n = param.result as? Int ?: return
-                    if (n <= 0) return
-                    val st = semitones() ?: return
-                    XposedBridge.log("$TAG 🔥 ByteBuffer n=$n st=$st proc=${lpparam.processName}")
-                    val bb  = param.args[0] as ByteBuffer
-                    val pos = bb.position()
-                    val raw = ByteArray(n)
-                    bb.position(pos - n); bb.get(raw)
-                    val out = PsolaEngine.shiftBytes(raw, n, st, sr(param.thisObject))
-                    bb.position(pos - n)
-                    bb.put(out, 0, minOf(out.size, n))
-                    bb.position(pos)
-                }
-            })
+            // MediaRecorder
+            try {
+                val mr = XposedHelpers.findClass("android.media.MediaRecorder", classLoader)
+                var outputPath: String? = null
 
-        XposedHelpers.findAndHookMethod(ar, "read",
-            ByteArray::class.java, Int::class.java, Int::class.java, Int::class.java,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val n = param.result as? Int ?: return
-                    if (n <= 0) return
-                    val st = semitones() ?: return
-                    val buf = param.args[0] as ByteArray
-                    val out = PsolaEngine.shiftBytes(buf, n, st, sr(param.thisObject))
-                    System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
-                }
-            })
+                XposedHelpers.findAndHookMethod(mr, "setOutputFile",
+                    String::class.java, object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            outputPath = param.args[0] as? String
+                            XposedBridge.log("$TAG MediaRecorder output: $outputPath")
+                        }
+                    })
 
-        XposedHelpers.findAndHookMethod(ar, "read",
-            ShortArray::class.java, Int::class.java, Int::class.java, Int::class.java,
-            object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val n = param.result as? Int ?: return
-                    if (n <= 0) return
-                    val st = semitones() ?: return
-                    val buf = param.args[0] as ShortArray
-                    val out = PsolaEngine.shiftShorts(buf, n, st)
-                    System.arraycopy(out, 0, buf, 0, minOf(out.size, n))
-                }
-            })
+                XposedHelpers.findAndHookMethod(mr, "stop",
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val path = outputPath ?: return
+                            val st   = semitones() ?: return
+                            XposedBridge.log("$TAG 🔥 MediaRecorder.stop — shifting $path st=$st")
+                            try { PsolaEngine.shiftAudioFile(path, st) }
+                            catch (t: Throwable) {
+                                XposedBridge.log("$TAG shiftAudioFile failed: ${t.message}")
+                            }
+                        }
+                    })
+            } catch (t: Throwable) {
+                XposedBridge.log("$TAG MediaRecorder hook failed: ${t.message}")
+            }
 
-        XposedBridge.log("$TAG ✅ All hooks armed for proc=${lpparam.processName}")
+            XposedBridge.log("$TAG ✅ All audio hooks installed")
+
+        } catch (t: Throwable) {
+            XposedBridge.log("$TAG ❌ installAudioHooks failed: ${t.message}")
+            hooksInstalled = false
+        }
     }
 
     private fun semitones(): Float? {
@@ -134,12 +198,12 @@ class VoicePitchModule : IXposedHookLoadPackage, IXposedHookZygoteInit {
             if (!enabled) return null
             if (kotlin.math.abs(semitones) < 0.05f) null else semitones
         } catch (t: Throwable) {
-            XposedBridge.log("$TAG ❌ xprefs failed: ${t.message}")
+            XposedBridge.log("$TAG xprefs error: ${t.message}")
             null
         }
     }
 
-    private fun sr(audioRecord: Any): Int =
-        try { XposedHelpers.getIntField(audioRecord, "mSampleRate") }
-        catch (_: Throwable) { 16000 }
+    private fun sr(rec: Any): Int =
+        try { XposedHelpers.getIntField(rec, "mSampleRate") }
+        catch (_: Throwable) { 48000 }
 }
