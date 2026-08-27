@@ -44,9 +44,10 @@ dependencies {
     implementation("com.google.android.material:material:1.9.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
-    implementation("androidx.core:core-ktx:1.10.1")
-    implementation("tv.danmaku.ijk.media:ijkplayer-java:0.8.8")
-    implementation("tv.danmaku.ijk.media:ijkplayer-arm64:0.8.8")
     implementation("com.google.code.gson:gson:2.10.1")
-    compileOnly("de.robv.android.xposed:api:82")
+
+    implementation("com.github.CarGuo.GSYVideoPlayer:ijkplayer-java:v8.5.0")
+    implementation("com.github.CarGuo.GSYVideoPlayer:ijkplayer-arm64:v8.5.0")
+
+    compileOnly("io.github.libxposed:api:100")
 }
