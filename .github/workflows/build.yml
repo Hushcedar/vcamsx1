@@ -32,26 +32,34 @@ jobs:
         run: |
           mkdir -p app/libs
 
-          # Xposed API stub jar — from official XposedBridge releases
-          curl -L \
+          # Xposed API — rovo89 official
+          curl -fL \
             "https://github.com/rovo89/XposedBridge/releases/download/art/XposedBridgeApi-54.jar" \
             -o app/libs/XposedBridgeApi.jar
+          echo "Xposed: $(wc -c < app/libs/XposedBridgeApi.jar) bytes"
 
-          # IjkPlayer java — from bilibili official release
-          curl -L \
-            "https://github.com/bilibili/ijkplayer/releases/download/v0.8.8/ijkplayer-java-0.8.8.jar" \
-            -o app/libs/ijkplayer-java.jar || \
-          curl -L \
+          # IjkPlayer java JAR — Maven Central correct path
+          curl -fL \
             "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-java/0.8.8/ijkplayer-java-0.8.8.jar" \
             -o app/libs/ijkplayer-java.jar
+          echo "IjkJava: $(wc -c < app/libs/ijkplayer-java.jar) bytes"
 
-          # IjkPlayer arm64 native AAR
-          curl -L \
+          # IjkPlayer arm64 — Maven Central
+          curl -fL \
             "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-arm64/0.8.8/ijkplayer-arm64-0.8.8.aar" \
             -o app/libs/ijkplayer-arm64.aar
+          echo "IjkArm64: $(wc -c < app/libs/ijkplayer-arm64.aar) bytes"
 
-          echo "--- libs ---"
-          ls -lh app/libs/
+          # Fail if any lib is too small (means download failed)
+          for f in app/libs/*.jar app/libs/*.aar; do
+            size=$(wc -c < "$f")
+            echo "$f = $size bytes"
+            if [ "$size" -lt 1000 ]; then
+              echo "ERROR: $f is too small — download failed"
+              cat "$f"
+              exit 1
+            fi
+          done
 
       - name: Create debug keystore
         run: |
@@ -68,7 +76,19 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -50
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Show APK info
+        if: always()
+        run: |
+          APK=$(find . -name "app-debug.apk" | head -1)
+          if [ -n "$APK" ]; then
+            echo "APK found: $APK"
+            ls -lh "$APK"
+          else
+            echo "No APK found"
+            find . -name "*.apk" 2>/dev/null
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
