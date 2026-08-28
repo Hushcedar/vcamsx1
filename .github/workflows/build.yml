@@ -28,103 +28,105 @@ jobs:
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Generate Xposed stub JAR
+      - name: Build Xposed stub JAR
         run: |
           mkdir -p app/libs
           mkdir -p /tmp/xstub/de/robv/android/xposed/callbacks
 
-          cat > /tmp/xstub/de/robv/android/xposed/IXposedHookLoadPackage.java << 'JAVA'
-          package de.robv.android.xposed;
-          import de.robv.android.xposed.callbacks.XC_LoadPackage;
-          public interface IXposedHookLoadPackage {
-              void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable;
-          }
-          JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/XposedBridge.java << 'JAVA'
-          package de.robv.android.xposed;
-          public class XposedBridge {
-              public static void log(String text) {}
-              public static void log(Throwable t) {}
-              public static Object invokeOriginalMethod(java.lang.reflect.Member method,
-                  Object thisObject, Object[] args) throws Throwable { return null; }
-          }
-          JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/XposedHelpers.java << 'JAVA'
-          package de.robv.android.xposed;
-          import java.lang.reflect.*;
-          public class XposedHelpers {
-              public static Object findAndHookMethod(String className, ClassLoader cl,
-                  String methodName, Object... args) { return null; }
-              public static Object findAndHookMethod(Class<?> clazz,
-                  String methodName, Object... args) { return null; }
-              public static Object getObjectField(Object obj, String fieldName) { return null; }
-              public static void setObjectField(Object obj, String fieldName, Object value) {}
-              public static int getIntField(Object obj, String fieldName) { return 0; }
-              public static void setIntField(Object obj, String fieldName, int value) {}
-              public static boolean getBooleanField(Object obj, String fieldName) { return false; }
-              public static void setBooleanField(Object obj, String fieldName, boolean value) {}
-              public static Object callMethod(Object obj, String methodName, Object... args) { return null; }
-              public static Object callStaticMethod(Class<?> clazz, String methodName, Object... args) { return null; }
-              public static Class<?> findClass(String className, ClassLoader classLoader) { return null; }
-              public static Object newInstance(Class<?> clazz, Object... args) { return null; }
-          }
-          JAVA
+          cat > /tmp/xstub/de/robv/android/xposed/callbacks/XC_LoadPackage.java << 'JAVA'
+package de.robv.android.xposed.callbacks;
+public class XC_LoadPackage {
+    public static class LoadPackageParam {
+        public String packageName;
+        public String processName;
+        public ClassLoader classLoader;
+        public boolean isFirstApplication;
+    }
+}
+JAVA
 
           cat > /tmp/xstub/de/robv/android/xposed/XC_MethodHook.java << 'JAVA'
-          package de.robv.android.xposed;
-          public abstract class XC_MethodHook {
-              public void beforeHookedMethod(MethodHookParam param) throws Throwable {}
-              public void afterHookedMethod(MethodHookParam param) throws Throwable {}
-              public class MethodHookParam {
-                  public java.lang.reflect.Member method;
-                  public Object thisObject;
-                  public Object[] args;
-                  private Object result;
-                  private Throwable throwable;
-                  public Object getResult() { return result; }
-                  public void setResult(Object result) { this.result = result; }
-                  public Throwable getThrowable() { return throwable; }
-                  public boolean hasThrowable() { return throwable != null; }
-                  public Object getResultOrThrowable() throws Throwable {
-                      if (throwable != null) throw throwable; return result;
-                  }
-              }
-          }
-          JAVA
+package de.robv.android.xposed;
+public abstract class XC_MethodHook {
+    public void beforeHookedMethod(MethodHookParam param) throws Throwable {}
+    public void afterHookedMethod(MethodHookParam param) throws Throwable {}
+    public class MethodHookParam {
+        public java.lang.reflect.Member method;
+        public Object thisObject;
+        public Object[] args;
+        private Object result;
+        private Throwable throwable;
+        public Object getResult() { return result; }
+        public void setResult(Object result) { this.result = result; }
+        public Throwable getThrowable() { return throwable; }
+        public boolean hasThrowable() { return throwable != null; }
+    }
+}
+JAVA
 
-          cat > /tmp/xstub/de/robv/android/xposed/callbacks/XC_LoadPackage.java << 'JAVA'
-          package de.robv.android.xposed.callbacks;
-          public class XC_LoadPackage {
-              public static class LoadPackageParam {
-                  public String packageName;
-                  public String processName;
-                  public ClassLoader classLoader;
-                  public android.content.pm.ApplicationInfo appInfo;
-                  public boolean isFirstApplication;
-              }
-          }
-          JAVA
+          cat > /tmp/xstub/de/robv/android/xposed/XposedBridge.java << 'JAVA'
+package de.robv.android.xposed;
+public class XposedBridge {
+    public static void log(String text) {}
+    public static void log(Throwable t) {}
+    public static Object invokeOriginalMethod(java.lang.reflect.Member method,
+        Object thisObject, Object[] args) throws Throwable { return null; }
+}
+JAVA
 
-          cat > /tmp/xstub/de/robv/android/xposed/IXposedHookZygoteInit.java << 'JAVA'
-          package de.robv.android.xposed;
-          public interface IXposedHookZygoteInit {
-              void initZygote(StartupParam startupParam) throws Throwable;
-              class StartupParam { public String modulePath; }
-          }
-          JAVA
+          cat > /tmp/xstub/de/robv/android/xposed/XposedHelpers.java << 'JAVA'
+package de.robv.android.xposed;
+import java.lang.reflect.*;
+public class XposedHelpers {
+    public static Object findAndHookMethod(String className, ClassLoader cl,
+        String methodName, Object... args) { return null; }
+    public static Object findAndHookMethod(Class<?> clazz,
+        String methodName, Object... args) { return null; }
+    public static Object getObjectField(Object obj, String fieldName) { return null; }
+    public static void setObjectField(Object obj, String fieldName, Object value) {}
+    public static int getIntField(Object obj, String fieldName) { return 0; }
+    public static void setIntField(Object obj, String fieldName, int value) {}
+    public static boolean getBooleanField(Object obj, String fieldName) { return false; }
+    public static void setBooleanField(Object obj, String fieldName, boolean value) {}
+    public static Object callMethod(Object obj, String methodName, Object... args) { return null; }
+    public static Object callStaticMethod(Class<?> clazz, String methodName, Object... args) { return null; }
+    public static Class<?> findClass(String className, ClassLoader classLoader) { return null; }
+}
+JAVA
+
+          cat > /tmp/xstub/de/robv/android/xposed/IXposedHookLoadPackage.java << 'JAVA'
+package de.robv.android.xposed;
+import de.robv.android.xposed.callbacks.XC_LoadPackage;
+public interface IXposedHookLoadPackage {
+    void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable;
+}
+JAVA
 
           cd /tmp/xstub
-          find . -name "*.java" | xargs javac -source 8 -target 8 2>/dev/null || true
-          jar cf /tmp/XposedBridgeApi.jar $(find . -name "*.class")
-          cp /tmp/XposedBridgeApi.jar /home/runner/work/vcamsx1/vcamsx1/app/libs/XposedBridgeApi.jar
-          echo "Xposed stub: $(wc -c < /home/runner/work/vcamsx1/vcamsx1/app/libs/XposedBridgeApi.jar) bytes"
+          javac -source 8 -target 8 \
+            de/robv/android/xposed/callbacks/XC_LoadPackage.java \
+            de/robv/android/xposed/XC_MethodHook.java \
+            de/robv/android/xposed/XposedBridge.java \
+            de/robv/android/xposed/XposedHelpers.java \
+            de/robv/android/xposed/IXposedHookLoadPackage.java
 
-      - name: Download IjkPlayer JARs
+          echo "Compiled classes:"
+          find . -name "*.class" | head -20
+
+          jar cf app/libs/XposedBridgeApi.jar \
+            de/robv/android/xposed/callbacks/XC_LoadPackage.class \
+            "de/robv/android/xposed/callbacks/XC_LoadPackage\$LoadPackageParam.class" \
+            de/robv/android/xposed/XC_MethodHook.class \
+            "de/robv/android/xposed/XC_MethodHook\$MethodHookParam.class" \
+            de/robv/android/xposed/XposedBridge.class \
+            de/robv/android/xposed/XposedHelpers.class \
+            de/robv/android/xposed/IXposedHookLoadPackage.class
+
+          cp app/libs/XposedBridgeApi.jar $GITHUB_WORKSPACE/app/libs/
+          echo "Xposed stub: $(wc -c < $GITHUB_WORKSPACE/app/libs/XposedBridgeApi.jar) bytes"
+
+      - name: Download IjkPlayer
         run: |
-          mkdir -p app/libs
-
           curl -fL \
             "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-java/0.8.8/ijkplayer-java-0.8.8.jar" \
             -o app/libs/ijkplayer-java.jar
