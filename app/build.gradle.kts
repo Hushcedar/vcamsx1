@@ -46,8 +46,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    implementation("com.github.CarGuo.GSYVideoPlayer:ijkplayer-java:v8.5.0")
-    implementation("com.github.CarGuo.GSYVideoPlayer:ijkplayer-arm64:v8.5.0")
-
-    compileOnly("io.github.libxposed:api:100")
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
 }

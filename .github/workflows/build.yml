@@ -2,9 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [ "vcam-full-ui" ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ "vcam-full-ui" ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -28,6 +28,31 @@ jobs:
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses || true
 
+      - name: Download local JARs
+        run: |
+          mkdir -p app/libs
+
+          # Xposed API stub jar — from official XposedBridge releases
+          curl -L \
+            "https://github.com/rovo89/XposedBridge/releases/download/art/XposedBridgeApi-54.jar" \
+            -o app/libs/XposedBridgeApi.jar
+
+          # IjkPlayer java — from bilibili official release
+          curl -L \
+            "https://github.com/bilibili/ijkplayer/releases/download/v0.8.8/ijkplayer-java-0.8.8.jar" \
+            -o app/libs/ijkplayer-java.jar || \
+          curl -L \
+            "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-java/0.8.8/ijkplayer-java-0.8.8.jar" \
+            -o app/libs/ijkplayer-java.jar
+
+          # IjkPlayer arm64 native AAR
+          curl -L \
+            "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-arm64/0.8.8/ijkplayer-arm64-0.8.8.aar" \
+            -o app/libs/ijkplayer-arm64.aar
+
+          echo "--- libs ---"
+          ls -lh app/libs/
+
       - name: Create debug keystore
         run: |
           mkdir -p keystore
@@ -36,19 +61,18 @@ jobs:
             -storepass android \
             -alias androiddebugkey \
             -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Grant gradlew execute
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -50
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: VCam-debug
           path: app/build/outputs/apk/debug/app-debug.apk
