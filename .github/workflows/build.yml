@@ -31,9 +31,12 @@ jobs:
       - name: Build Xposed stub JAR
         run: |
           mkdir -p app/libs
-          mkdir -p /tmp/xstub/de/robv/android/xposed/callbacks
+          python3 << 'PYEOF'
+          import os, subprocess
 
-          cat > /tmp/xstub/de/robv/android/xposed/callbacks/XC_LoadPackage.java << 'JAVA'
+          base = "/tmp/xstub"
+          files = {
+            "de/robv/android/xposed/callbacks/XC_LoadPackage.java": """
 package de.robv.android.xposed.callbacks;
 public class XC_LoadPackage {
     public static class LoadPackageParam {
@@ -42,10 +45,8 @@ public class XC_LoadPackage {
         public ClassLoader classLoader;
         public boolean isFirstApplication;
     }
-}
-JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/XC_MethodHook.java << 'JAVA'
+}""",
+            "de/robv/android/xposed/XC_MethodHook.java": """
 package de.robv.android.xposed;
 public abstract class XC_MethodHook {
     public void beforeHookedMethod(MethodHookParam param) throws Throwable {}
@@ -61,20 +62,16 @@ public abstract class XC_MethodHook {
         public Throwable getThrowable() { return throwable; }
         public boolean hasThrowable() { return throwable != null; }
     }
-}
-JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/XposedBridge.java << 'JAVA'
+}""",
+            "de/robv/android/xposed/XposedBridge.java": """
 package de.robv.android.xposed;
 public class XposedBridge {
     public static void log(String text) {}
     public static void log(Throwable t) {}
     public static Object invokeOriginalMethod(java.lang.reflect.Member method,
         Object thisObject, Object[] args) throws Throwable { return null; }
-}
-JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/XposedHelpers.java << 'JAVA'
+}""",
+            "de/robv/android/xposed/XposedHelpers.java": """
 package de.robv.android.xposed;
 public class XposedHelpers {
     public static Object findAndHookMethod(String className, ClassLoader cl,
@@ -90,31 +87,33 @@ public class XposedHelpers {
     public static Object callMethod(Object obj, String methodName, Object... args) { return null; }
     public static Object callStaticMethod(Class<?> clazz, String methodName, Object... args) { return null; }
     public static Class<?> findClass(String className, ClassLoader classLoader) { return null; }
-}
-JAVA
-
-          cat > /tmp/xstub/de/robv/android/xposed/IXposedHookLoadPackage.java << 'JAVA'
+}""",
+            "de/robv/android/xposed/IXposedHookLoadPackage.java": """
 package de.robv.android.xposed;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public interface IXposedHookLoadPackage {
     void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable;
-}
-JAVA
+}"""
+          }
 
-          cd /tmp/xstub
-          javac -source 8 -target 8 \
-            de/robv/android/xposed/callbacks/XC_LoadPackage.java \
-            de/robv/android/xposed/XC_MethodHook.java \
-            de/robv/android/xposed/XposedBridge.java \
-            de/robv/android/xposed/XposedHelpers.java \
-            de/robv/android/xposed/IXposedHookLoadPackage.java
+          for path, content in files.items():
+              full = os.path.join(base, path)
+              os.makedirs(os.path.dirname(full), exist_ok=True)
+              open(full, "w").write(content)
+              print(f"Wrote {full}")
 
-          echo "Classes compiled:"
-          find /tmp/xstub -name "*.class"
+          srcs = [os.path.join(base, f) for f in files.keys()]
+          r = subprocess.run(["javac", "-source", "8", "-target", "8"] + srcs,
+              capture_output=True, text=True)
+          print(r.stdout); print(r.stderr)
 
-          jar cf /tmp/XposedBridgeApi.jar -C /tmp/xstub .
-          cp /tmp/XposedBridgeApi.jar $GITHUB_WORKSPACE/app/libs/XposedBridgeApi.jar
-          echo "Xposed stub size: $(wc -c < $GITHUB_WORKSPACE/app/libs/XposedBridgeApi.jar) bytes"
+          ws = os.environ.get("GITHUB_WORKSPACE", ".")
+          out = os.path.join(ws, "app/libs/XposedBridgeApi.jar")
+          r2 = subprocess.run(["jar", "cf", out, "-C", base, "."],
+              capture_output=True, text=True)
+          print(r2.stdout); print(r2.stderr)
+          print(f"JAR size: {os.path.getsize(out)} bytes")
+          PYEOF
 
       - name: Download IjkPlayer
         run: |
