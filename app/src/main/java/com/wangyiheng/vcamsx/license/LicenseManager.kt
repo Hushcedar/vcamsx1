@@ -18,12 +18,25 @@ object LicenseManager {
     private const val SECRET_SALT    = "VCamSX_S3cr3t_2026_!@#"
 
     // ── Duration config ─────────────────────────────────────────────────────
-    // Change TRIAL_MINUTES to 10080 (7 days) for production
-    private const val TRIAL_MINUTES  = 5     // 5 minutes for testing
-    private const val SCAN_WINDOW    = 120   // look back 2 hours of minute-epochs when verifying
+    // Supported durations (minutes) — app tries each when verifying
+    private val SUPPORTED_DURATIONS = listOf(
+        5,          // testing
+        1440,       // 1 day
+        2880,       // 2 days
+        4320,       // 3 days
+        10080,      // 7 days / 1 week
+        20160,      // 2 weeks
+        43200,      // 30 days / 1 month
+        129600,     // 3 months
+        525600      // 1 year
+    )
+    private const val SCAN_WINDOW = 5   // key must be entered within 5 minutes
     // ────────────────────────────────────────────────────────────────────────
 
+    // SINGLE nowMin() function
     private fun nowMin(): Int = (System.currentTimeMillis() / 60_000L).toInt()
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
 
     fun init(ctx: Context) {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -32,11 +45,13 @@ object LicenseManager {
         val now     = nowMin()
         val lastMin = prefs.getInt(KEY_LAST_MIN, now)
 
+        // Rollback: clock went back more than 2 minutes
         if (now < lastMin - 2) {
             prefs.edit().putBoolean(KEY_CHEATER, true).apply()
             return
         }
 
+        // NTP check
         val ntpMin = getNtpMin()
         if (ntpMin != null && ntpMin > lastMin && now < lastMin) {
             prefs.edit().putBoolean(KEY_CHEATER, true).apply()
@@ -45,6 +60,8 @@ object LicenseManager {
 
         prefs.edit().putInt(KEY_LAST_MIN, maxOf(now, ntpMin ?: now)).apply()
     }
+
+    // ─── Status ───────────────────────────────────────────────────────────────
 
     fun getStatus(ctx: Context): LicenseStatus {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -59,7 +76,7 @@ object LicenseManager {
                     val lastMin   = prefs.getInt(KEY_LAST_MIN, nowMin())
                     val effective = maxOf(nowMin(), lastMin)
                     val elapsed   = effective - r.issuedMin
-                    val minsLeft  = TRIAL_MINUTES - elapsed
+                    val minsLeft  = r.durationMin - elapsed
                     return if (minsLeft > 0) LicenseStatus.TRIAL(minsLeft)
                            else LicenseStatus.EXPIRED
                 }
@@ -77,12 +94,15 @@ object LicenseManager {
         else -> false
     }
 
+    // ─── Activate ─────────────────────────────────────────────────────────────
+
     fun activateKey(ctx: Context, key: String): KeyResult {
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_CHEATER, false)) return KeyResult.INVALID
 
         val clean = key.trim().uppercase().replace("-", "")
 
+        // Check if key was already used on this device
         val usedKeys = prefs.getString(KEY_USED_KEYS, "") ?: ""
         val keyHash  = sha256(clean).take(12)
         if (usedKeys.split("|").contains(keyHash)) return KeyResult.ALREADY_USED
@@ -94,9 +114,10 @@ object LicenseManager {
                 KeyResult.VALID_PERMANENT
             }
             is VerifyResult.Trial -> {
+                // Check not expired before accepting
                 val r = verifyKey(ctx, clean) as VerifyResult.Trial
                 val elapsed = nowMin() - r.issuedMin
-                if (elapsed >= TRIAL_MINUTES) return KeyResult.EXPIRED
+                if (elapsed >= r.durationMin) return KeyResult.EXPIRED
                 markUsed(prefs, usedKeys, keyHash)
                 prefs.edit().putString(KEY_LICENSE, clean).apply()
                 KeyResult.VALID_TRIAL
@@ -114,9 +135,11 @@ object LicenseManager {
         prefs.edit().putString(KEY_USED_KEYS, updated).apply()
     }
 
+    // ─── Verify ───────────────────────────────────────────────────────────────
+
     private sealed class VerifyResult {
         object Permanent                      : VerifyResult()
-        data class Trial(val issuedMin: Int)  : VerifyResult()
+        data class Trial(val issuedMin: Int, val durationMin: Int) : VerifyResult()
         object Invalid                        : VerifyResult()
     }
 
@@ -130,15 +153,20 @@ object LicenseManager {
         if (clean == sha256("${SECRET_SALT}UNIVERSAL").take(16).uppercase())
             return VerifyResult.Permanent
 
+        // Scan back SCAN_WINDOW minutes × supported durations to find issue minute + duration
         val now = nowMin()
         for (ago in 0..SCAN_WINDOW) {
             val issueMin = now - ago
-            val expected = sha256("${SECRET_SALT}${deviceId}TRIAL${issueMin}").take(16).uppercase()
-            if (clean == expected) return VerifyResult.Trial(issueMin)
+            for (dur in SUPPORTED_DURATIONS) {
+                val expected = sha256("$SECRET_SALT${deviceId}TRIAL${issueMin}_${dur}").take(16).uppercase()
+                if (clean == expected) return VerifyResult.Trial(issueMin, dur)
+            }
         }
 
         return VerifyResult.Invalid
     }
+
+    // ─── NTP ─────────────────────────────────────────────────────────────────
 
     private fun getNtpMin(): Int? = try {
         val socket = DatagramSocket().also { it.soTimeout = 3000 }
@@ -152,6 +180,8 @@ object LicenseManager {
         (unixMs / 60_000L).toInt()
     } catch (e: Exception) { null }
 
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
     fun getDeviceId(ctx: Context): String =
         Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID)
             ?.uppercase() ?: "UNKNOWN"
@@ -161,9 +191,11 @@ object LicenseManager {
             .digest(input.toByteArray())
             .joinToString("") { "%02x".format(it) }
 
-    fun generateTrialKey(deviceId: String, minsAgo: Int = 0): String {
+    // ─── Key generators (run on your machine) ────────────────────────────────
+
+    fun generateTrialKey(deviceId: String, durationMin: Int, minsAgo: Int = 0): String {
         val issuedMin = nowMin() - minsAgo
-        val h = sha256("${SECRET_SALT}${deviceId.uppercase()}TRIAL${issuedMin}").take(16).uppercase()
+        val h = sha256("$SECRET_SALT${deviceId.uppercase()}TRIAL${issuedMin}_${durationMin}").take(16).uppercase()
         return "${h.substring(0,4)}-${h.substring(4,8)}-${h.substring(8,12)}-${h.substring(12,16)}"
     }
 
