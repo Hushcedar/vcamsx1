@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- LSPosed module metadata -->
+    <meta-data
+        android:name="xposedmodule"
+        android:value="true" />
+    <meta-data
+        android:name="xposeddescription"
+        android:value="Real-time voice effects for WhatsApp, Telegram, Discord and more" />
+    <meta-data
+        android:name="xposedminversion"
+        android:value="53" />
+    <meta-data
+        android:name="xposedscope"
+        android:value="com.whatsapp,org.telegram.messenger,com.discord,org.thoughtcrime.securesms,com.viber.voip,com.skype.raider" />
+
+    <application
+        android:allowBackup="false"
+        android:label="VoiceChangerX"
+        android:theme="@style/Theme.VoiceChangerX"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.FloatingControlsService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <receiver
+            android:name=".audio.AudioControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.voicechangerx.TOGGLE" />
+                <action android:name="com.voicechangerx.PITCH_UP" />
+                <action android:name="com.voicechangerx.PITCH_DOWN" />
+                <action android:name="com.voicechangerx.PITCH_RESET" />
+                <action android:name="com.voicechangerx.GENDER_MALE" />
+                <action android:name="com.voicechangerx.GENDER_FEMALE" />
+                <action android:name="com.voicechangerx.GENDER_OFF" />
+                <action android:name="com.voicechangerx.NOISE_TOGGLE" />
+                <action android:name="com.voicechangerx.ROBOT_TOGGLE" />
+                <action android:name="com.voicechangerx.PRESET_APPLY" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

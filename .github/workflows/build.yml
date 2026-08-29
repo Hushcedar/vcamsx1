@@ -1,0 +1,24 @@
+name: Build APK
+on:
+  push:
+    branches: ["**"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin', cache: gradle }
+      - uses: android-actions/setup-android@v3
+      - name: Download Xposed API jar
+        run: |
+          mkdir -p app/libs
+          curl -L "https://jitpack.io/com/github/rovo89/XposedBridge/82/XposedBridge-82.jar" -o app/libs/XposedBridge.jar 2>/dev/null || \
+          wget -q "https://jitpack.io/com/github/rovo89/XposedBridge/82/XposedBridge-82.jar" -O app/libs/XposedBridge.jar || true
+      - run: chmod +x gradlew
+      - run: ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoiceChangerX-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
