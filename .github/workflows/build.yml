@@ -33,12 +33,10 @@ jobs:
           mkdir -p app/libs
           python3 .github/scripts/build_xposed_stub.py
 
-      - name: Download IjkPlayer
+      - name: Build IjkPlayer stub JAR
         run: |
           mkdir -p app/libs
-          curl -fL "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-java/0.8.8/ijkplayer-java-0.8.8.jar" -o app/libs/ijkplayer-java.jar
-          curl -fL "https://repo1.maven.org/maven2/tv/danmaku/ijk/media/ijkplayer-arm64/0.8.8/ijkplayer-arm64-0.8.8.aar" -o app/libs/ijkplayer-arm64.aar
-          ls -lh app/libs/
+          python3 .github/scripts/build_ijk_stub.py
 
       - name: Create debug keystore
         run: |
