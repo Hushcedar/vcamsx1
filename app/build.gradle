@@ -65,5 +65,5 @@ dependencies {
 
     // LSPosed API — compileOnly so it's not bundled in the APK
     compileOnly fileTree(dir: "libs", include: ["*.jar"])
-    compileOnly fileTree(dir: "libs", include: ["*.jar"])sources'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 }
