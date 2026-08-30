@@ -61,7 +61,6 @@ object ImagePlayer {
                 Log.d(TAG, "decoded ${bmp.width}x${bmp.height} sample=$sample")
 
                 val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-                setVideoToFramesBuffer(nv21)
                 setMainHookField("data_buffer", nv21)
 
                 hasImage.value  = true
@@ -99,7 +98,6 @@ object ImagePlayer {
         isActive.value = true
         currentBitmap?.let { bmp ->
             val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-            setVideoToFramesBuffer(nv21)
             setMainHookField("data_buffer", nv21)
         }
         val surface = getMainHookSurface()
@@ -111,7 +109,6 @@ object ImagePlayer {
     fun stop() {
         isActive.value = false
         stopRenderer()
-        setVideoToFramesBuffer(byteArrayOf())
         setMainHookField("data_buffer", byteArrayOf())
     }
 
@@ -125,13 +122,6 @@ object ImagePlayer {
     fun currentBitmapSnapshot(): Bitmap? = currentBitmap
 
     private fun stopRenderer() { activeRenderer?.stop(); activeRenderer = null }
-
-    private fun setVideoToFramesBuffer(nv21: ByteArray) {
-        try {
-            Class.forName("com.wangyiheng.vcamsx.utils.VideoToFrames")
-                .getField("data_buffer").set(null, nv21)
-        } catch (_: Exception) {}
-    }
 
     private fun setMainHookField(field: String, value: Any?) {
         try {
