@@ -47,7 +47,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -60
+        run: ./gradlew assembleDebug --no-daemon 2>&1 | grep -E "^e:|error:|Unresolved|cannot find|FAILED|\.kt:" | head -50
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
