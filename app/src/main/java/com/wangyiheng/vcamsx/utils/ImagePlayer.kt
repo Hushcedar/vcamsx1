@@ -30,8 +30,8 @@ object ImagePlayer {
     fun loadImage(context: Context, uri: Uri) {
         val bytes: ByteArray? = try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        } catch (e: Exception) {
-            Log.e(TAG, "readBytes: ${e.message}"); null
+        } catch (t: Throwable) {
+            Log.e(TAG, "readBytes: ${t.message}"); null
         }
         if (bytes == null || bytes.isEmpty()) {
             _loadResult.value = false; return
@@ -67,8 +67,8 @@ object ImagePlayer {
                 isActive.value  = false
                 _loadResult.value = true
 
-            } catch (e: Exception) {
-                Log.e(TAG, "decode thread: ${e.message}", e)
+            } catch (t: Throwable) {
+                Log.e(TAG, "decode thread: ${t.message}", t)
                 _loadResult.value = false
             }
         }, "VCamSX-ImgLoad").apply { isDaemon = true; start() }
@@ -90,7 +90,7 @@ object ImagePlayer {
             if (!r.start()) { Log.e(TAG, "renderer timed out"); return }
             activeRenderer = r
             Log.d(TAG, "renderer running on $surface")
-        } catch (e: Exception) { Log.e(TAG, "attachSurface: ${e.message}", e) }
+        } catch (t: Throwable) { Log.e(TAG, "attachSurface: ${t.message}", t) }
     }
 
     fun activateInjection() {
@@ -127,13 +127,13 @@ object ImagePlayer {
         try {
             Class.forName("com.wangyiheng.vcamsx.MainHook")
                 .getField(field).set(null, value)
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 
     private fun getMainHookSurface(): Surface? = try {
         Class.forName("com.wangyiheng.vcamsx.MainHook")
             .getField("original_preview_Surface").get(null) as? Surface
-    } catch (_: Exception) { null }
+    } catch (_: Throwable) { null }
 
     fun rotate() {
         VideoControls.rotation.value = (VideoControls.rotation.value + 90) % 360
