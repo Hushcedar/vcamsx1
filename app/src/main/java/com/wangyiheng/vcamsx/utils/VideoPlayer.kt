@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.view.Surface
+import com.wangyiheng.vcamsx.utils.ImageBridge
 import com.wangyiheng.vcamsx.MainHook
 import tv.danmaku.ijk.media.player.IjkMediaPlayer
 import java.util.concurrent.ConcurrentHashMap
@@ -41,7 +42,9 @@ object VideoPlayer {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                val frame = VideoToFrames.data_buffer
+                val frame = if (ImageBridge.isImageActive val frame = VideoToFrames.data_bufferval frame = VideoToFrames.data_buffer ImageBridge.data_buffer.size > 1)
+                    ImageBridge.data_buffer
+                else VideoToFrames.data_buffer
                 if (frame.size > 1) {
                     imageWriters.forEach { (writer, info) ->
                         val (_, w, h) = info

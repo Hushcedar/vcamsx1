@@ -15,6 +15,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
+import com.wangyiheng.vcamsx.utils.ImageBridge
 import com.wangyiheng.vcamsx.utils.VideoPlayer
 import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.IXposedHookLoadPackage
@@ -55,7 +56,11 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var mcamera1:               Camera?        = null
         @JvmField var camera_onPreviewFrame:  Camera?        = null
         @JvmField var camera_callback_calss:  Class<*>?      = null
-        @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()
+        @Volatile @JvmField var data_buffer: ByteArray
+        get() = if (ImageBridge.isImageActive @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()@Volatile @JvmField var data_buffer: ByteArray = byteArrayOf() ImageBridge.data_buffer.size > 1)
+                    ImageBridge.data_buffer
+                else field
+        set(value) { field = value }
 
         fun makeFakeST(old: SurfaceTexture?): SurfaceTexture {
             old?.release()

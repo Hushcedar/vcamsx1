@@ -60,11 +60,12 @@ object ImagePlayer {
                 currentBitmap = bmp
                 Log.d(TAG, "decoded ${bmp.width}x${bmp.height} sample=$sample")
 
+                // Pre-compute NV21 and store in ImageBridge — safe, no Xposed
                 val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-                setMainHookField("data_buffer", nv21)
+                ImageBridge.data_buffer = nv21
 
-                hasImage.value  = true
-                isActive.value  = false
+                hasImage.value    = true
+                isActive.value    = false
                 _loadResult.value = true
 
             } catch (t: Throwable) {
@@ -96,10 +97,13 @@ object ImagePlayer {
     fun activateInjection() {
         if (!hasImage.value) return
         isActive.value = true
+        ImageBridge.isImageActive = true
+
+        // Re-push NV21 in case it was cleared
         currentBitmap?.let { bmp ->
-            val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-            setMainHookField("data_buffer", nv21)
+            ImageBridge.data_buffer = bitmapToNV21(bmp, NV21_W, NV21_H)
         }
+
         val surface = getMainHookSurface()
         if (surface != null && surface.isValid) {
             attachSurface(surface)
@@ -108,8 +112,9 @@ object ImagePlayer {
 
     fun stop() {
         isActive.value = false
+        ImageBridge.isImageActive = false
+        ImageBridge.data_buffer   = byteArrayOf()
         stopRenderer()
-        setMainHookField("data_buffer", byteArrayOf())
     }
 
     fun reset() {
@@ -122,13 +127,6 @@ object ImagePlayer {
     fun currentBitmapSnapshot(): Bitmap? = currentBitmap
 
     private fun stopRenderer() { activeRenderer?.stop(); activeRenderer = null }
-
-    private fun setMainHookField(field: String, value: Any?) {
-        try {
-            Class.forName("com.wangyiheng.vcamsx.MainHook")
-                .getField(field).set(null, value)
-        } catch (_: Throwable) {}
-    }
 
     private fun getMainHookSurface(): Surface? = try {
         Class.forName("com.wangyiheng.vcamsx.MainHook")
