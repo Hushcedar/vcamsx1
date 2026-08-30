@@ -15,12 +15,9 @@ object ImagePlayer {
     private const val NV21_W = 720
     private const val NV21_H = 1280
 
-    // ── Compose-observable state ──────────────────────────────────────────────
-    // Use mutableStateOf so ToggleRow recomposes when these change.
     val isActive  = mutableStateOf(false)
     val hasImage  = mutableStateOf(false)
 
-    // Keep plain @Volatile for hook-side reads (no Compose dependency there)
     @Volatile var currentBitmap: Bitmap? = null
         private set
 
@@ -30,7 +27,6 @@ object ImagePlayer {
     val loadResult = _loadResult.asStateFlow()
     fun clearLoadResult() { _loadResult.value = null }
 
-    // ── Load from gallery ─────────────────────────────────────────────────────
     fun loadImage(context: Context, uri: Uri) {
         val bytes: ByteArray? = try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -43,14 +39,12 @@ object ImagePlayer {
 
         Thread({
             try {
-                // 1. Probe dimensions
                 val probe = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
                 if (probe.outWidth <= 0 || probe.outHeight <= 0) {
                     _loadResult.value = false; return@Thread
                 }
 
-                // 2. Decode with down-sample
                 var sample = 1
                 while (probe.outWidth  / sample > 1080 ||
                        probe.outHeight / sample > 1920) sample *= 2
@@ -66,18 +60,12 @@ object ImagePlayer {
                 currentBitmap = bmp
                 Log.d(TAG, "decoded ${bmp.width}x${bmp.height} sample=$sample")
 
-                // 3. Pre-compute NV21 for Camera1 preview path
                 val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-                VideoToFrames.data_buffer = nv21
+                setVideoToFramesBuffer(nv21)
                 setMainHookField("data_buffer", nv21)
 
-                // 4. Mark image as ready — DO NOT call attachSurface here.
-                //    The camera surface (original_preview_Surface) is only valid
-                //    while a camera app is open. Calling it at load time = null surface = crash.
-                //    attachSurface is called later by activateInjection() when the
-                //    user toggles "Inject Image" while a camera app is actually running.
                 hasImage.value  = true
-                isActive.value  = false  // user must toggle on explicitly
+                isActive.value  = false
                 _loadResult.value = true
 
             } catch (e: Exception) {
@@ -87,11 +75,10 @@ object ImagePlayer {
         }, "VCamSX-ImgLoad").apply { isDaemon = true; start() }
     }
 
-    // ── Called when camera surface becomes available (from MainHook) ──────────
     fun attachSurface(surface: Surface) {
-        if (!isActive.value) return          // don't attach if user hasn't toggled on
+        if (!isActive.value) return
         val bmp = currentBitmap ?: return
-        if (!surface.isValid) return         // guard: never pass invalid surface to EGL
+        if (!surface.isValid) return
         stopRenderer()
         try {
             val r = StaticImageRenderer(
@@ -107,29 +94,24 @@ object ImagePlayer {
         } catch (e: Exception) { Log.e(TAG, "attachSurface: ${e.message}", e) }
     }
 
-    // ── Called when user toggles "Inject Image" ON ────────────────────────────
     fun activateInjection() {
         if (!hasImage.value) return
         isActive.value = true
-        // Re-push NV21 in case data_buffer was cleared
         currentBitmap?.let { bmp ->
             val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-            VideoToFrames.data_buffer = nv21
+            setVideoToFramesBuffer(nv21)
             setMainHookField("data_buffer", nv21)
         }
-        // Attach GL renderer to the current camera surface if one is open
         val surface = getMainHookSurface()
         if (surface != null && surface.isValid) {
             attachSurface(surface)
         }
-        // If no surface yet, attachSurface() will be called by MainHook when
-        // the camera opens (via onSurfaceTextureAvailable / openCamera hook)
     }
 
     fun stop() {
         isActive.value = false
         stopRenderer()
-        VideoToFrames.data_buffer = byteArrayOf()
+        setVideoToFramesBuffer(byteArrayOf())
         setMainHookField("data_buffer", byteArrayOf())
     }
 
@@ -140,10 +122,16 @@ object ImagePlayer {
         hasImage.value = false
     }
 
-    // For the still-capture hook — returns the current bitmap to composite onto
     fun currentBitmapSnapshot(): Bitmap? = currentBitmap
 
     private fun stopRenderer() { activeRenderer?.stop(); activeRenderer = null }
+
+    private fun setVideoToFramesBuffer(nv21: ByteArray) {
+        try {
+            Class.forName("com.wangyiheng.vcamsx.utils.VideoToFrames")
+                .getField("data_buffer").set(null, nv21)
+        } catch (_: Exception) {}
+    }
 
     private fun setMainHookField(field: String, value: Any?) {
         try {
@@ -157,7 +145,6 @@ object ImagePlayer {
             .getField("original_preview_Surface").get(null) as? Surface
     } catch (_: Exception) { null }
 
-    // ── Transform controls ────────────────────────────────────────────────────
     fun rotate() {
         VideoControls.rotation.value = (VideoControls.rotation.value + 90) % 360
         activeRenderer?.also { it.rotationDeg = VideoControls.rotation.value; it.needsRedraw = true }
@@ -184,7 +171,6 @@ object ImagePlayer {
         activeRenderer?.also { it.scaleValue = s; it.needsRedraw = true }
     }
 
-    // ── NV21 converter (Camera1 preview path) ─────────────────────────────────
     fun bitmapToNV21(src: Bitmap, outW: Int, outH: Int): ByteArray {
         val bmp = if (src.width != outW || src.height != outH)
             Bitmap.createScaledBitmap(src, outW, outH, true) else src
