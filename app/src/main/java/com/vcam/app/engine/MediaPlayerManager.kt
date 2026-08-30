@@ -1,47 +1,36 @@
 package com.vcam.app.engine
 
+import android.content.Context
+import android.media.MediaPlayer
+import android.net.Uri
 import android.util.Log
-import tv.danmaku.ijk.media.player.IjkMediaPlayer
-import java.util.*
+import android.view.Surface
 
 object MediaPlayerManager {
-    private const val MAX_PLAYER_COUNT = 5 // 最大播放器数量
-    private val playerQueue = LinkedList<IjkMediaPlayer>()
+    private const val TAG = "VCam-MPManager"
+    private var mediaPlayer: MediaPlayer? = null
 
-    init {
-        // 初始化播放器队列
-        repeat(MAX_PLAYER_COUNT) {
-            val mediaPlayer = IjkMediaPlayer()
-            mediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 0)
-
-
-            playerQueue.add(mediaPlayer)
-        }
+    fun play(ctx: Context, surface: Surface, loop: Boolean = true) {
+        try {
+            release()
+            mediaPlayer = MediaPlayer().apply {
+                setSurface(surface)
+                isLooping = loop
+                setDataSource(ctx, Uri.parse("content://com.vcam.app.videoprovider"))
+                prepareAsync()
+                setOnPreparedListener { it.start() }
+                setOnErrorListener { _, w, e -> Log.e(TAG, "error $w/$e"); false }
+            }
+        } catch (e: Exception) { Log.e(TAG, "play: ${e.message}") }
     }
 
-    private var currentPlayingPlayer: IjkMediaPlayer? = null
-
-    fun acquirePlayer(): IjkMediaPlayer {
-        // 释放之前的播放器对象
-        Log.d("dbb",playerQueue.toString())
-        currentPlayingPlayer?.let {
-            releasePlayer(it)
-        }
-
-
-        return if (playerQueue.isNotEmpty()) {
-            currentPlayingPlayer = playerQueue.poll() // 获取可用的播放器对象并设置为当前播放器
-            currentPlayingPlayer!!
-        } else {
-            currentPlayingPlayer = IjkMediaPlayer() // 如果队列为空，创建一个新的播放器对象并设置为当前播放器
-            currentPlayingPlayer!!
-        }
+    fun release() {
+        try { mediaPlayer?.stop() } catch (_: Exception) {}
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 
-    private fun releasePlayer(player: IjkMediaPlayer?) {
-        player?.apply {
-            reset()
-            playerQueue.offer(this) // 重置播放器并放回队列中
-        }
-    }
+    fun pause()  { try { mediaPlayer?.pause()  } catch (_: Exception) {} }
+    fun resume() { try { mediaPlayer?.start()  } catch (_: Exception) {} }
+    fun seekTo(ms: Int) { try { mediaPlayer?.seekTo(ms) } catch (_: Exception) {} }
 }
