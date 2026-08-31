@@ -13,9 +13,9 @@ import android.os.Build
 import android.os.Handler
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.wangyiheng.vcamsx.utils.ImageBridge
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
-import com.wangyiheng.vcamsx.utils.ImageBridge
 import com.wangyiheng.vcamsx.utils.VideoPlayer
 import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.IXposedHookLoadPackage
@@ -56,17 +56,18 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var mcamera1:               Camera?        = null
         @JvmField var camera_onPreviewFrame:  Camera?        = null
         @JvmField var camera_callback_calss:  Class<*>?      = null
-        @Volatile @JvmField var data_buffer: ByteArray
-        get() = if (ImageBridge.isImageActive @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()@Volatile @JvmField var data_buffer: ByteArray = byteArrayOf() ImageBridge.data_buffer.size > 1)
-                    ImageBridge.data_buffer
-                else field
-        set(value) { field = value }
+        @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()
 
         fun makeFakeST(old: SurfaceTexture?): SurfaceTexture {
             old?.release()
             return if (Build.VERSION.SDK_INT >= 26) SurfaceTexture(false)
             else SurfaceTexture(10)
         }
+
+        fun getActiveBuffer(): ByteArray =
+            if (ImageBridge.isImageActive && ImageBridge.data_buffer.size > 1)
+                ImageBridge.data_buffer
+            else data_buffer
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -422,13 +423,14 @@ class MainHook : IXposedHookLoadPackage {
                                 "content://com.wangyiheng.vcamsx.videoprovider"))
                         }
                     }
+                    val buf = getActiveBuffer()
                     val deadline = System.currentTimeMillis() + 2000L
-                    while (data_buffer.size <= 1 && System.currentTimeMillis() < deadline) {
+                    while (buf.size <= 1 && System.currentTimeMillis() < deadline) {
                         try { Thread.sleep(10) } catch (_: InterruptedException) { break }
                     }
-                    if (data_buffer.size <= 1) return
+                    if (buf.size <= 1) return
                     val dst = p.args[0] as? ByteArray ?: return
-                    System.arraycopy(data_buffer, 0, dst, 0, minOf(data_buffer.size, dst.size))
+                    System.arraycopy(buf, 0, dst, 0, minOf(buf.size, dst.size))
                 }
             }
         )
