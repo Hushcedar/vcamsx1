@@ -13,7 +13,6 @@ import android.os.Build
 import android.os.Handler
 import android.view.Surface
 import android.view.SurfaceHolder
-import com.wangyiheng.vcamsx.utils.ImageBridge
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
 import com.wangyiheng.vcamsx.utils.VideoPlayer
@@ -58,14 +57,6 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var camera_callback_calss:  Class<*>?      = null
         @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()
 
-        fun getActiveBuffer(): ByteArray {
-            if (ImageBridge.isActive()) {
-                val nv21 = ImageBridge.readNV21()
-                if (nv21 != null && nv21.size > 1) return nv21
-            }
-            return data_buffer
-        }
-
         fun makeFakeST(old: SurfaceTexture?): SurfaceTexture {
             old?.release()
             return if (Build.VERSION.SDK_INT >= 26) SurfaceTexture(false)
@@ -98,7 +89,6 @@ class MainHook : IXposedHookLoadPackage {
                     if (context == ctx) return
                     try {
                         context = ctx
-                        ImageBridge.init(ctx.getExternalFilesDir(null) ?: ctx.filesDir)
                         VideoControlReceiver.register(ctx)
                         if (!isPlaying) { isPlaying = true; VideoPlayer.initializeTheStateAsWellAsThePlayer() }
                     } catch (e: Exception) { XposedBridge.log("$TAG init: $e") }
@@ -428,7 +418,7 @@ class MainHook : IXposedHookLoadPackage {
                                 "content://com.wangyiheng.vcamsx.videoprovider"))
                         }
                     }
-                    val buf = getActiveBuffer()
+                    val buf = data_buffer
                     val deadline = System.currentTimeMillis() + 2000L
                     while (buf.size <= 1 && System.currentTimeMillis() < deadline) {
                         try { Thread.sleep(10) } catch (_: InterruptedException) { break }

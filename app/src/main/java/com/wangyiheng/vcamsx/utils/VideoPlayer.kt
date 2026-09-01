@@ -41,7 +41,7 @@ object VideoPlayer {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                val frame = MainHook.getActiveBuffer()
+                val frame = VideoToFrames.data_buffer
                 if (frame.size > 1) {
                     imageWriters.forEach { (writer, info) ->
                         val (_, w, h) = info
