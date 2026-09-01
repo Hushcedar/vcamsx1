@@ -58,16 +58,19 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var camera_callback_calss:  Class<*>?      = null
         @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()
 
+        fun getActiveBuffer(): ByteArray {
+            if (ImageBridge.isActive()) {
+                val nv21 = ImageBridge.readNV21()
+                if (nv21 != null && nv21.size > 1) return nv21
+            }
+            return data_buffer
+        }
+
         fun makeFakeST(old: SurfaceTexture?): SurfaceTexture {
             old?.release()
             return if (Build.VERSION.SDK_INT >= 26) SurfaceTexture(false)
             else SurfaceTexture(10)
         }
-
-        fun getActiveBuffer(): ByteArray =
-            if (ImageBridge.isImageActive && ImageBridge.data_buffer.size > 1)
-                ImageBridge.data_buffer
-            else data_buffer
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -94,7 +97,9 @@ class MainHook : IXposedHookLoadPackage {
                     val ctx = app.applicationContext
                     if (context == ctx) return
                     try {
-                        context = ctx; VideoControlReceiver.register(ctx)
+                        context = ctx
+                        ImageBridge.init(ctx.getExternalFilesDir(null) ?: ctx.filesDir)
+                        VideoControlReceiver.register(ctx)
                         if (!isPlaying) { isPlaying = true; VideoPlayer.initializeTheStateAsWellAsThePlayer() }
                     } catch (e: Exception) { XposedBridge.log("$TAG init: $e") }
                 }
@@ -331,8 +336,8 @@ class MainHook : IXposedHookLoadPackage {
                 Int::class.java, Int::class.java, Int::class.java, Int::class.java,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val w = param.args[0] as? Int ?: return
-                        val h = param.args[1] as? Int ?: return
+                        val w   = param.args[0] as? Int ?: return
+                        val h   = param.args[1] as? Int ?: return
                         val fmt = param.args[2] as? Int ?: return
                         val reader = param.result ?: return
                         try {

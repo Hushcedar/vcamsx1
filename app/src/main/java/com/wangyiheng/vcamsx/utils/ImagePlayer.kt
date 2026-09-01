@@ -28,6 +28,9 @@ object ImagePlayer {
     fun clearLoadResult() { _loadResult.value = null }
 
     fun loadImage(context: Context, uri: Uri) {
+        // Init bridge with external files dir — same dir as copied_video.mp4
+        ImageBridge.init(context.getExternalFilesDir(null) ?: context.filesDir)
+
         val bytes: ByteArray? = try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (t: Throwable) {
@@ -60,9 +63,9 @@ object ImagePlayer {
                 currentBitmap = bmp
                 Log.d(TAG, "decoded ${bmp.width}x${bmp.height} sample=$sample")
 
-                // Pre-compute NV21 and store in ImageBridge — safe, no Xposed
+                // Write NV21 to disk — readable by hook in cloned app process
                 val nv21 = bitmapToNV21(bmp, NV21_W, NV21_H)
-                ImageBridge.data_buffer = nv21
+                ImageBridge.writeNV21(nv21)
 
                 hasImage.value    = true
                 isActive.value    = false
@@ -97,28 +100,26 @@ object ImagePlayer {
     fun activateInjection() {
         if (!hasImage.value) return
         isActive.value = true
-        ImageBridge.isImageActive = true
+        ImageBridge.setActive(true)
 
-        // Re-push NV21 in case it was cleared
+        // Re-write NV21 in case file was cleared
         currentBitmap?.let { bmp ->
-            ImageBridge.data_buffer = bitmapToNV21(bmp, NV21_W, NV21_H)
+            ImageBridge.writeNV21(bitmapToNV21(bmp, NV21_W, NV21_H))
         }
 
         val surface = getMainHookSurface()
-        if (surface != null && surface.isValid) {
-            attachSurface(surface)
-        }
+        if (surface != null && surface.isValid) attachSurface(surface)
     }
 
     fun stop() {
         isActive.value = false
-        ImageBridge.isImageActive = false
-        ImageBridge.data_buffer   = byteArrayOf()
+        ImageBridge.setActive(false)
         stopRenderer()
     }
 
     fun reset() {
         stop()
+        ImageBridge.clear()
         currentBitmap?.recycle()
         currentBitmap = null
         hasImage.value = false
@@ -143,8 +144,8 @@ object ImagePlayer {
     }
     fun adjustOffset(dx: Int, dy: Int) {
         activeRenderer?.also {
-            it.offsetX     = (it.offsetX + dx * (2f / NV21_W)).coerceIn(-1.5f, 1.5f)
-            it.offsetY     = (it.offsetY - dy * (2f / NV21_H)).coerceIn(-1.5f, 1.5f)
+            it.offsetX = (it.offsetX + dx * (2f / NV21_W)).coerceIn(-1.5f, 1.5f)
+            it.offsetY = (it.offsetY - dy * (2f / NV21_H)).coerceIn(-1.5f, 1.5f)
             it.needsRedraw = true
         }
     }
