@@ -590,16 +590,59 @@ class MainHook : IXposedHookLoadPackage {
                 ByteArray::class.java, Camera::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(p: MethodHookParam) {
-                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
-                        val stream = ByteArrayOutputStream()
-                        bmp.compress(Bitmap.CompressFormat.JPEG, 95, stream)
-                        p.args[0] = stream.toByteArray()
+                        val realJpeg = p.args[0] as? ByteArray ?: return
+                        val sourceBmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        try {
+                            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size, opts)
+                            val targetW = opts.outWidth.takeIf { it > 0 } ?: sourceBmp.width
+                            val targetH = opts.outHeight.takeIf { it > 0 } ?: sourceBmp.height
+
+                            val scaled = centerCropBitmap(sourceBmp, targetW, targetH)
+                            val out = ByteArrayOutputStream(realJpeg.size)
+                            scaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                            if (scaled !== sourceBmp) scaled.recycle()
+
+                            p.args[0] = out.toByteArray()
+                            XposedBridge.log("$TAG JPEG replaced: ${targetW}x${targetH}")
+                        } catch (e: Throwable) {
+                            XposedBridge.log("$TAG hookJPEGCb: ${e.message}")
+                        }
                     }
                 }
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG hookJPEGCb install: $e") }
     }
 
+    private fun hookYUVCb(param: XC_MethodHook.MethodHookParam) {
+        try {
+            XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
+                ByteArray::class.java, Camera::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(p: MethodHookParam) {
+                        val realJpeg = p.args[0] as? ByteArray ?: return
+                        val sourceBmp = ImagePlayer.currentBitmapSnapshot() ?: return
+                        try {
+                            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size, opts)
+                            val targetW = opts.outWidth.takeIf { it > 0 } ?: sourceBmp.width
+                            val targetH = opts.outHeight.takeIf { it > 0 } ?: sourceBmp.height
+
+                            val scaled = centerCropBitmap(sourceBmp, targetW, targetH)
+                            val out = ByteArrayOutputStream(realJpeg.size)
+                            scaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                            if (scaled !== sourceBmp) scaled.recycle()
+
+                            p.args[0] = out.toByteArray()
+                            XposedBridge.log("$TAG YUV replaced: ${targetW}x${targetH}")
+                        } catch (e: Throwable) {
+                            XposedBridge.log("$TAG hookYUVCb: ${e.message}")
+                        }
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG hookYUVCb install: $e") }
+    }
     private fun hookYUVCb(param: XC_MethodHook.MethodHookParam) {
         try {
             XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
