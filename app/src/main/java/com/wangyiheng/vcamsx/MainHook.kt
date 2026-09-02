@@ -3,6 +3,7 @@ package com.wangyiheng.vcamsx
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.SurfaceTexture
 import android.hardware.Camera
 import android.hardware.camera2.CameraCaptureSession
@@ -91,9 +92,7 @@ class MainHook : IXposedHookLoadPackage {
         var previewReplaced = false
         for (s in original) {
             when {
-                nonPreviewSurfaces.contains(s) -> {
-                    result.add(s)
-                }
+                nonPreviewSurfaces.contains(s) -> result.add(s)
                 !previewReplaced -> {
                     original_preview_Surface = s
                     result.add(virt)
@@ -217,20 +216,81 @@ class MainHook : IXposedHookLoadPackage {
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG C1.addCallbackBuffer install: $e") }
 
+        // Hook takePicture — IPMAN-style: capture happens, we replace before delivery
         try {
             XposedHelpers.findAndHookMethod("android.hardware.Camera", cl, "takePicture",
                 Camera.ShutterCallback::class.java, Camera.PictureCallback::class.java,
                 Camera.PictureCallback::class.java, Camera.PictureCallback::class.java,
                 object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val status = InfoProcesser.videoStatus
-                        if (status?.isVideoEnable != true && !ImagePlayer.isActive.value) return
-                        if (param.args[0] != null) hookYUVCb(param)
-                        if (param.args[2] != null) hookJPEGCb(param, 2)
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        // args[1] = raw/YUV callback, args[2] = postview, args[3] = JPEG
+                        // Wrap the JPEG callback (args[3]) — this is what apps actually use
+                        val jpegCb = param.args[3] as? Camera.PictureCallback
+                        if (jpegCb != null) {
+                            param.args[3] = Camera.PictureCallback { data, camera ->
+                                val replaced = if (data != null) replaceJpegWithBitmap(data) else data
+                                jpegCb.onPictureTaken(replaced, camera)
+                            }
+                        }
+                        // Also wrap args[2] postview callback if present
+                        val postviewCb = param.args[2] as? Camera.PictureCallback
+                        if (postviewCb != null) {
+                            param.args[2] = Camera.PictureCallback { data, camera ->
+                                val replaced = if (data != null) replaceJpegWithBitmap(data) else data
+                                postviewCb.onPictureTaken(replaced, camera)
+                            }
+                        }
                     }
                 }
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG C1.takePicture install: $e") }
+    }
+
+    // ── IPMAN-style JPEG replacement ─────────────────────────────────────────
+    // Decode real JPEG dimensions → center-crop our bitmap to match → re-encode
+    // Real frame is fully blocked; only our image reaches the app.
+    private fun replaceJpegWithBitmap(realJpeg: ByteArray): ByteArray {
+        val sourceBmp = ImagePlayer.currentBitmapSnapshot() ?: return realJpeg
+        return try {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size, opts)
+            val targetW = if (opts.outWidth  > 0) opts.outWidth  else sourceBmp.width
+            val targetH = if (opts.outHeight > 0) opts.outHeight else sourceBmp.height
+
+            val scaled = centerCropBitmap(sourceBmp, targetW, targetH)
+            val out    = ByteArrayOutputStream(realJpeg.size)
+            scaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            if (scaled !== sourceBmp) scaled.recycle()
+
+            XposedBridge.log("$TAG JPEG replaced ${targetW}x${targetH}")
+            out.toByteArray()
+        } catch (e: Throwable) {
+            XposedBridge.log("$TAG replaceJpeg: ${e.message}")
+            realJpeg
+        }
+    }
+
+    // Center-crop: fill targetW x targetH without stretching
+    private fun centerCropBitmap(src: Bitmap, targetW: Int, targetH: Int): Bitmap {
+        if (src.width == targetW && src.height == targetH) return src
+        val srcRatio    = src.width.toFloat()  / src.height.toFloat()
+        val targetRatio = targetW.toFloat()     / targetH.toFloat()
+        val (scaledW, scaledH) = if (srcRatio > targetRatio) {
+            val h = targetH
+            val w = (src.width.toFloat() * targetH / src.height).toInt()
+            Pair(w, h)
+        } else {
+            val w = targetW
+            val h = (src.height.toFloat() * targetW / src.width).toInt()
+            Pair(w, h)
+        }
+        val scaled  = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
+        val cropX   = (scaledW - targetW) / 2
+        val cropY   = (scaledH - targetH) / 2
+        val cropped = Bitmap.createBitmap(scaled, cropX, cropY, targetW, targetH)
+        if (scaled !== src) scaled.recycle()
+        return cropped
     }
 
     private fun hookCamera2(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -311,8 +371,6 @@ class MainHook : IXposedHookLoadPackage {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val original = param.args[0] as? List<Surface> ?: return
                         param.args[0] = filterAndSwapSurfaceList(original)
-                        XposedBridge.log("$TAG session(List) filtered: " +
-                            "${original.size} surfaces -> ${(param.args[0] as List<*>).size}")
                     }
                 }
             )
@@ -327,7 +385,6 @@ class MainHook : IXposedHookLoadPackage {
                             val orig = param.args[0] as? SessionConfiguration ?: return
                             sessionConfiguration = orig
                             val virt = c2_virtual_surface ?: return
-
                             val origOutputs = try { orig.outputConfigurations } catch (_: Throwable) { null }
                             val newOutputs = ArrayList<OutputConfiguration>()
                             var previewReplaced = false
@@ -346,12 +403,9 @@ class MainHook : IXposedHookLoadPackage {
                             } else {
                                 newOutputs.add(OutputConfiguration(virt))
                             }
-
                             val fake = SessionConfiguration(
                                 orig.sessionType, newOutputs, orig.executor, orig.stateCallback)
                             fake_sessionConfiguration = fake; param.args[0] = fake
-                            XposedBridge.log("$TAG session(SC) filtered: " +
-                                "${origOutputs?.size ?: 0} outputs -> ${newOutputs.size}")
                         }
                     }
                 )
@@ -369,9 +423,7 @@ class MainHook : IXposedHookLoadPackage {
                         }
                     }
                 )
-            } catch (e: Throwable) {
-                XposedBridge.log("$TAG session(List,Executor,SC) overload not present on this ROM: $e")
-            }
+            } catch (e: Throwable) { XposedBridge.log("$TAG session(List,Executor,SC): $e") }
         }
     }
 
@@ -383,15 +435,14 @@ class MainHook : IXposedHookLoadPackage {
                 Int::class.java, Int::class.java, Int::class.java, Int::class.java,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val w = param.args[0] as? Int ?: return
-                        val h = param.args[1] as? Int ?: return
+                        val w   = param.args[0] as? Int ?: return
+                        val h   = param.args[1] as? Int ?: return
                         val fmt = param.args[2] as? Int ?: return
                         val reader = param.result ?: return
                         try {
                             val surf = reader.javaClass.getMethod("getSurface")
                                 .invoke(reader) as? Surface ?: return
                             nonPreviewSurfaces.add(surf)
-                            XposedBridge.log("$TAG IR fmt=$fmt ${w}x${h} — flagged non-preview")
                             VideoPlayer.addImageWriterTarget(surf, fmt, w, h)
                             hookAcquireOnReaderClass(reader.javaClass)
                         } catch (e: Throwable) { XposedBridge.log("$TAG IR.newInstance: $e") }
@@ -423,24 +474,23 @@ class MainHook : IXposedHookLoadPackage {
                     if (image.format != android.graphics.ImageFormat.JPEG) return
                     val plane = image.planes.getOrNull(0) ?: return
                     val buf   = plane.buffer
+                    // IPMAN-style: match the image dimensions exactly, center-crop
+                    val scaled = centerCropBitmap(bmp, image.width, image.height)
                     val stream = ByteArrayOutputStream()
-                    val scaled = if (bmp.width == image.width && bmp.height == image.height) bmp
-                                 else Bitmap.createScaledBitmap(bmp, image.width, image.height, true)
                     scaled.compress(Bitmap.CompressFormat.JPEG, 95, stream)
                     if (scaled !== bmp) scaled.recycle()
                     val jpeg = stream.toByteArray()
                     buf.clear()
                     buf.put(jpeg, 0, minOf(jpeg.size, buf.capacity()))
                     buf.rewind()
-                    XposedBridge.log("$TAG acquireImage swapped JPEG " +
-                        "${image.width}x${image.height} -> ${jpeg.size}b")
+                    XposedBridge.log("$TAG acquireImage JPEG swapped ${image.width}x${image.height}")
                 } catch (e: Throwable) { XposedBridge.log("$TAG acquireImage swap: $e") }
             }
         }
         try { XposedHelpers.findAndHookMethod(cls, "acquireLatestImage", swapHook) }
-            catch (e: Throwable) { XposedBridge.log("$TAG hook acquireLatest on $cls: $e") }
+            catch (e: Throwable) { XposedBridge.log("$TAG hook acquireLatest: $e") }
         try { XposedHelpers.findAndHookMethod(cls, "acquireNextImage", swapHook) }
-            catch (e: Throwable) { XposedBridge.log("$TAG hook acquireNext on $cls: $e") }
+            catch (e: Throwable) { XposedBridge.log("$TAG hook acquireNext: $e") }
     }
 
     private fun hookMediaCodecSurface(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -501,25 +551,17 @@ class MainHook : IXposedHookLoadPackage {
                         val cam = p.args[1] as? Camera ?: return
                         val dst = p.args[0] as? ByteArray ?: return
 
-                        // FIX (Bug 3): When image mode is active, generate NV21 from the
-                        // bitmap directly — VideoToFrames.data_buffer is never populated in
-                        // image mode because the reader pipeline isn't running yet at this
-                        // point, so waiting on data_buffer always times out and injects nothing.
                         if (ImagePlayer.isActive.value) {
                             val bmp = ImagePlayer.currentBitmapSnapshot()
                             if (bmp != null) {
-                                // Derive output size from the destination buffer (app-allocated)
-                                // Typical NV21: W*H*3/2 bytes; guess dimensions from buffer size
                                 val totalPixels = dst.size * 2 / 3
-                                // Find W and H that match the buffer — prefer 720x1280 or fallback
                                 val (outW, outH) = when {
-                                    totalPixels == 720 * 1280 -> Pair(720, 1280)
-                                    totalPixels == 1280 * 720 -> Pair(1280, 720)
-                                    totalPixels == 640 * 480  -> Pair(640, 480)
-                                    totalPixels == 480 * 640  -> Pair(480, 640)
+                                    totalPixels == 720 * 1280  -> Pair(720, 1280)
+                                    totalPixels == 1280 * 720  -> Pair(1280, 720)
+                                    totalPixels == 640 * 480   -> Pair(640, 480)
+                                    totalPixels == 480 * 640   -> Pair(480, 640)
                                     totalPixels == 1920 * 1080 -> Pair(1920, 1080)
                                     else -> {
-                                        // Best-effort: try to find W as sqrt of aspect-close value
                                         val sqr = Math.sqrt(totalPixels.toDouble()).toInt()
                                         Pair(sqr, totalPixels / sqr)
                                     }
@@ -534,10 +576,9 @@ class MainHook : IXposedHookLoadPackage {
                                     XposedBridge.log("$TAG onPreviewFrame imgNV21: $e")
                                 }
                             }
-                            return  // Do NOT fall through to VideoToFrames path in image mode
+                            return
                         }
 
-                        // Video mode: spin up VideoToFrames decoder if camera changed
                         if (cam != camera_onPreviewFrame) {
                             camera_callback_calss = cls; camera_onPreviewFrame = cam
                             hw_decode_obj?.stopDecode()
@@ -559,7 +600,6 @@ class MainHook : IXposedHookLoadPackage {
         } catch (e: Throwable) { XposedBridge.log("$TAG hookPreviewCallback install: $e") }
     }
 
-    /** NV21 conversion used by Camera1 preview callback in image mode */
     private fun bitmapToNv21(src: Bitmap, w: Int, h: Int): ByteArray {
         val argb  = IntArray(w * h)
         src.getPixels(argb, 0, w, 0, 0, w, h)
@@ -582,80 +622,5 @@ class MainHook : IXposedHookLoadPackage {
             }
         }
         return nv21
-    }
-
-    private fun hookJPEGCb(param: XC_MethodHook.MethodHookParam, idx: Int) {
-        try {
-            XposedHelpers.findAndHookMethod(param.args[idx].javaClass, "onPictureTaken",
-                ByteArray::class.java, Camera::class.java,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(p: MethodHookParam) {
-                        val realJpeg = p.args[0] as? ByteArray ?: return
-                        val sourceBmp = ImagePlayer.currentBitmapSnapshot() ?: return
-                        try {
-                            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                            BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size, opts)
-                            val targetW = opts.outWidth.takeIf { it > 0 } ?: sourceBmp.width
-                            val targetH = opts.outHeight.takeIf { it > 0 } ?: sourceBmp.height
-
-                            val scaled = centerCropBitmap(sourceBmp, targetW, targetH)
-                            val out = ByteArrayOutputStream(realJpeg.size)
-                            scaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                            if (scaled !== sourceBmp) scaled.recycle()
-
-                            p.args[0] = out.toByteArray()
-                            XposedBridge.log("$TAG JPEG replaced: ${targetW}x${targetH}")
-                        } catch (e: Throwable) {
-                            XposedBridge.log("$TAG hookJPEGCb: ${e.message}")
-                        }
-                    }
-                }
-            )
-        } catch (e: Throwable) { XposedBridge.log("$TAG hookJPEGCb install: $e") }
-    }
-
-    private fun hookYUVCb(param: XC_MethodHook.MethodHookParam) {
-        try {
-            XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
-                ByteArray::class.java, Camera::class.java,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(p: MethodHookParam) {
-                        val realJpeg = p.args[0] as? ByteArray ?: return
-                        val sourceBmp = ImagePlayer.currentBitmapSnapshot() ?: return
-                        try {
-                            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                            BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size, opts)
-                            val targetW = opts.outWidth.takeIf { it > 0 } ?: sourceBmp.width
-                            val targetH = opts.outHeight.takeIf { it > 0 } ?: sourceBmp.height
-
-                            val scaled = centerCropBitmap(sourceBmp, targetW, targetH)
-                            val out = ByteArrayOutputStream(realJpeg.size)
-                            scaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                            if (scaled !== sourceBmp) scaled.recycle()
-
-                            p.args[0] = out.toByteArray()
-                            XposedBridge.log("$TAG YUV replaced: ${targetW}x${targetH}")
-                        } catch (e: Throwable) {
-                            XposedBridge.log("$TAG hookYUVCb: ${e.message}")
-                        }
-                    }
-                }
-            )
-        } catch (e: Throwable) { XposedBridge.log("$TAG hookYUVCb install: $e") }
-    }
-    private fun hookYUVCb(param: XC_MethodHook.MethodHookParam) {
-        try {
-            XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
-                ByteArray::class.java, Camera::class.java,
-                object : XC_MethodHook() {
-                    override fun beforeHookedMethod(p: MethodHookParam) {
-                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
-                        val stream = ByteArrayOutputStream()
-                        bmp.compress(Bitmap.CompressFormat.JPEG, 95, stream)
-                        p.args[0] = stream.toByteArray()
-                    }
-                }
-            )
-        } catch (e: Throwable) { XposedBridge.log("$TAG hookYUVCb install: $e") }
     }
 }
