@@ -7,6 +7,8 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import com.wangyiheng.vcamsx.license.SupabaseClient
+import java.util.Date
 
 object LicenseManager {
 
@@ -111,7 +113,9 @@ object LicenseManager {
             is VerifyResult.Permanent -> {
                 markUsed(prefs, usedKeys, keyHash)
                 prefs.edit().putString(KEY_LICENSE, clean).apply()
-                KeyResult.VALID_PERMANENT
+                // Log to Supabase
+                                SupabaseClient.recordActivation(getDeviceId(ctx), sha256(clean).take(12), "permanent", null)
+                                KeyResult.VALID_PERMANENT
             }
             is VerifyResult.Trial -> {
                 // Check not expired before accepting
@@ -120,7 +124,11 @@ object LicenseManager {
                 if (elapsed >= r.durationMin) return KeyResult.EXPIRED
                 markUsed(prefs, usedKeys, keyHash)
                 prefs.edit().putString(KEY_LICENSE, clean).apply()
-                KeyResult.VALID_TRIAL
+                // Log to Supabase
+                                val r2 = verifyKey(ctx, clean) as? VerifyResult.Trial
+                                val expiresAt = if (r2 != null) Date(System.currentTimeMillis() + (r2.durationMin - (nowMin() - r2.issuedMin)) * 60_000L) else null
+                                SupabaseClient.recordActivation(getDeviceId(ctx), sha256(clean).take(12), "trial", expiresAt)
+                                KeyResult.VALID_TRIAL
             }
             is VerifyResult.Invalid -> KeyResult.INVALID
         }

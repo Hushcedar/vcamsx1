@@ -24,6 +24,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         LicenseManager.init(this)
 
+        // Ping Supabase — update last_seen, check if admin revoked
+        val deviceId = com.wangyiheng.vcamsx.license.LicenseManager.getDeviceId(this)
+        com.wangyiheng.vcamsx.license.SupabaseClient.ping(deviceId) {
+            // Revoked remotely — clear license and restart
+            getSharedPreferences("vcamsx_lic", MODE_PRIVATE).edit()
+                .remove("k").putBoolean("c", true).apply()
+            recreate()
+        }
+
         if (!Settings.canDrawOverlays(this)) {
             overlayLauncher.launch(
                 Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
