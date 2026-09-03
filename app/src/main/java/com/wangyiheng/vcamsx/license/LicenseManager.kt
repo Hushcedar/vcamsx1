@@ -32,7 +32,7 @@ object LicenseManager {
         129600,     // 3 months
         525600      // 1 year
     )
-    private const val SCAN_WINDOW = 5   // key must be entered within 5 minutes
+    private const val SCAN_WINDOW = 4320   // key must be entered within 5 minutes
     // ────────────────────────────────────────────────────────────────────────
 
     // SINGLE nowMin() function
