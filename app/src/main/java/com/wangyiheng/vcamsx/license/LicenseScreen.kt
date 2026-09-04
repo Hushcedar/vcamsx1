@@ -1,9 +1,5 @@
 package com.wangyiheng.vcamsx.license
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -12,249 +8,209 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wangyiheng.vcamsx.MainActivity
 import com.wangyiheng.vcamsx.ui.theme.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-// ── Cyber colors local ────────────────────────────────────────────────────────
-private val BG       = Color(0xFF000005)
-private val CARD     = Color(0xFF07071A)
-private val ACCENT   = NeonCyan
-private val PURPLE   = NeonPurple
-private val GREEN    = NeonGreen
-private val RED      = NeonRed
-private val TEXT     = CyberText
-private val SUBTEXT  = CyberSubtext
-private val BORDER   = Color(0xFF1A1A40)
-
-private fun isOnline(context: Context): Boolean {
-    val cm   = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val net  = cm.activeNetwork ?: return false
-    val caps = cm.getNetworkCapabilities(net) ?: return false
-    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-           caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-}
-
-// ── Glow border modifier ──────────────────────────────────────────────────────
-@Composable
-fun Modifier.cyberGlowBorder(color: Color, radius: Dp = 16.dp, glowAlpha: Float = 0.6f): Modifier {
-    val glow = color.copy(alpha = glowAlpha)
-    return this
-        .border(width = 1.dp, brush = Brush.linearGradient(listOf(color, PURPLE, color)), shape = RoundedCornerShape(radius))
-        .drawBehind {
-            drawRoundRect(
-                color  = glow.copy(alpha = 0.15f),
-                size   = size.copy(width = size.width + 8, height = size.height + 8),
-                topLeft = Offset(-4f, -4f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius.toPx()),
-                style  = Stroke(width = 8f)
-            )
-        }
-}
-
-// ── Grid background ───────────────────────────────────────────────────────────
-@Composable
-fun CyberGrid(modifier: Modifier = Modifier) {
-    val gridColor = ACCENT.copy(alpha = 0.04f)
-    Box(modifier = modifier.drawBehind {
-        val step = 40f
-        var x = 0f
-        while (x < size.width) {
-            drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 0.5f)
-            x += step
-        }
-        var y = 0f
-        while (y < size.height) {
-            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 0.5f)
-            y += step
-        }
-    })
-}
-
-// ── Pulsing glow dot ─────────────────────────────────────────────────────────
-@Composable
-fun GlowDot(color: Color, size: Dp = 8.dp) {
-    val pulse by rememberInfiniteTransition(label = "dot").animateFloat(
-        initialValue = 0.4f, targetValue = 1f, label = "pulse",
-        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse)
-    )
-    Box(
-        modifier = Modifier
-            .size(size)
-            .background(color.copy(alpha = pulse), shape = androidx.compose.foundation.shape.CircleShape)
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
     val context  = LocalContext.current
-    val scope    = rememberCoroutineScope()
-    var keyInput     by remember { mutableStateOf("") }
-    var errorMsg     by remember { mutableStateOf("") }
-    var isActivating by remember { mutableStateOf(false) }
-    var online       by remember { mutableStateOf(isOnline(context)) }
-    val deviceId     = remember { LicenseManager.getDeviceId(context) }
+    var keyInput by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf("") }
+    val deviceId = remember { LicenseManager.getDeviceId(context) }
 
-    // Title glow pulse
-    val titleGlow by rememberInfiniteTransition(label = "title").animateFloat(
-        initialValue = 0.5f, targetValue = 1f, label = "glow",
-        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse)
-    )
-
-    Box(modifier = Modifier.fillMaxSize().background(BG)) {
-        // Grid background
-        CyberGrid(modifier = Modifier.fillMaxSize())
-
-        // Ambient glow blobs
-        Box(modifier = Modifier.size(300.dp).offset((-80).dp, (-80).dp)
-            .background(Brush.radialGradient(listOf(ACCENT.copy(0.06f), Color.Transparent))))
-        Box(modifier = Modifier.size(300.dp).align(Alignment.BottomEnd).offset(80.dp, 80.dp)
-            .background(Brush.radialGradient(listOf(PURPLE.copy(0.06f), Color.Transparent))))
-
+    Box(
+        modifier         = Modifier.fillMaxSize().background(Obsidian),
+        contentAlignment = Alignment.Center
+    ) {
         Column(
-            modifier = Modifier
+            modifier            = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
-                .align(Alignment.Center),
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── Header ──────────────────────────────────────────────────────
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("🎥", fontSize = 48.sp)
+
+            // ── Brand header ──────────────────────────────────────────────────
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    "VCAMSX",
-                    fontSize    = 32.sp,
-                    fontWeight  = FontWeight.Black,
-                    fontFamily  = FontFamily.Monospace,
-                    color       = ACCENT.copy(alpha = titleGlow),
-                    letterSpacing = 8.sp
+                    "VCamSX",
+                    color         = TextHigh,
+                    fontSize      = 28.sp,
+                    fontWeight    = FontWeight.Bold,
+                    letterSpacing = 1.sp
                 )
                 Text(
-                    "v${MainActivity.APP_VERSION}",
-                    fontSize   = 11.sp,
-                    color      = SUBTEXT,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 4.sp
-                )
-                Text(
-                    "CAMERA INJECTION MODULE",
-                    fontSize      = 9.sp,
-                    color         = PURPLE.copy(alpha = 0.7f),
-                    fontFamily    = FontFamily.Monospace,
-                    letterSpacing = 3.sp
+                    "Secure Access Gateway",
+                    color         = TextMid,
+                    fontSize      = 12.sp,
+                    letterSpacing = 0.5.sp
                 )
             }
 
-            // ── No internet banner ───────────────────────────────────────────
-            if (!online) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .cyberGlowBorder(RED, 12.dp)
-                        .background(RED.copy(0.05f), RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("⚠", color = RED, fontSize = 16.sp)
-                        Column(Modifier.weight(1f)) {
-                            Text("NO SIGNAL", color = RED, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                            Text("Internet required to activate", color = RED.copy(0.6f), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                        }
-                        TextButton(onClick = { online = isOnline(context) }, contentPadding = PaddingValues(4.dp)) {
-                            Text("RETRY", color = ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                }
-            }
-
-            // ── Status card ──────────────────────────────────────────────────
-            val statusBorder = when (status) {
-                is LicenseStatus.TRIAL            -> GREEN
-                LicenseStatus.LICENSED_PERMANENT  -> ACCENT
-                LicenseStatus.EXPIRED             -> RED
-                LicenseStatus.CHEATER             -> RED
-                else                              -> PURPLE
-            }
-            Box(
-                modifier = Modifier
+            // ── Status card ───────────────────────────────────────────────────
+            Card(
+                modifier  = Modifier
                     .fillMaxWidth()
-                    .cyberGlowBorder(statusBorder, 16.dp)
-                    .background(
-                        Brush.linearGradient(listOf(CARD, Color(0xFF0A0A25))),
-                        RoundedCornerShape(16.dp)
-                    )
-                    .padding(20.dp)
+                    .border(0.5.dp, SurfaceStroke, RoundedCornerShape(16.dp)),
+                shape     = RoundedCornerShape(16.dp),
+                colors    = CardDefaults.cardColors(containerColor = Surface),
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
                 Column(
+                    modifier            = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     when (status) {
                         LicenseStatus.FRESH -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GlowDot(PURPLE)
-                                Text("AWAITING AUTHORIZATION", color = PURPLE, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                            }
-                            Text("Enter license key to initialize module\nNew user? Request a trial key.",
-                                color = SUBTEXT, fontSize = 12.sp, textAlign = TextAlign.Center, fontFamily = FontFamily.Monospace)
+                            Text(
+                                "No Active License",
+                                color      = TextHigh,
+                                fontSize   = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Enter your license key below to get started.\nNeed a key? Request a free trial.",
+                                color     = TextMid,
+                                fontSize  = 13.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 19.sp
+                            )
                         }
                         is LicenseStatus.TRIAL -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GlowDot(GREEN)
-                                Text("TRIAL LICENSE ACTIVE", color = GREEN, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Green, androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Text(
+                                    "Trial License Active",
+                                    color      = Green,
+                                    fontSize   = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
-                            Text("${status.minsLeft} MINUTES REMAINING", color = TEXT, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-                            CyberButton("[ LAUNCH MODULE ]", GREEN) { onUnlocked() }
+                            Text(
+                                "${status.minsLeft} minutes remaining",
+                                color    = TextHigh,
+                                fontSize = 14.sp
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Button(
+                                onClick  = onUnlocked,
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape    = RoundedCornerShape(10.dp),
+                                colors   = ButtonDefaults.buttonColors(containerColor = Cyan)
+                            ) {
+                                Text(
+                                    "Continue to App",
+                                    color      = Obsidian,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize   = 14.sp
+                                )
+                            }
                         }
                         LicenseStatus.EXPIRED -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GlowDot(RED)
-                                Text("LICENSE EXPIRED", color = RED, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Red, androidx.compose.foundation.shape.CircleShape)
+                                )
+                                Text(
+                                    "License Expired",
+                                    color      = Red,
+                                    fontSize   = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
-                            Text("Trial ended. Enter a new key to continue.", color = SUBTEXT, fontSize = 12.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
+                            Text(
+                                "Your trial period has ended.\nEnter a new key to continue.",
+                                color     = TextMid,
+                                fontSize  = 13.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 19.sp
+                            )
                         }
                         LicenseStatus.CHEATER -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GlowDot(RED)
-                                Text("⛔  DEVICE BANNED", color = RED, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(RedDim, RoundedCornerShape(10.dp))
+                                    .border(0.5.dp, Red.copy(0.3f), RoundedCornerShape(10.dp))
+                                    .padding(16.dp)
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        "Device Blocked",
+                                        color      = Red,
+                                        fontSize   = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign  = TextAlign.Center
+                                    )
+                                    Text(
+                                        "Clock tampering was detected on this device.\nAccess has been permanently revoked.",
+                                        color     = Red.copy(0.7f),
+                                        fontSize  = 12.sp,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 18.sp
+                                    )
+                                    Text(
+                                        "Contact support with your Device ID to appeal.",
+                                        color     = TextMid,
+                                        fontSize  = 11.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
-                            Text("Clock manipulation detected.\nThis device is permanently locked.", color = RED.copy(0.7f), fontSize = 11.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
-                            Text("Contact support with Device ID to appeal.", color = SUBTEXT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
                         }
                         else -> {}
                     }
                 }
             }
 
-            // ── Key entry ────────────────────────────────────────────────────
+            // ── Key entry card ────────────────────────────────────────────────
             if (status != LicenseStatus.CHEATER) {
-                Box(
-                    modifier = Modifier
+                Card(
+                    modifier  = Modifier
                         .fillMaxWidth()
-                        .cyberGlowBorder(ACCENT.copy(if (online) 0.5f else 0.15f), 16.dp)
-                        .background(Brush.linearGradient(listOf(CARD, Color(0xFF050515))), RoundedCornerShape(16.dp))
-                        .padding(20.dp)
+                        .border(0.5.dp, SurfaceStroke, RoundedCornerShape(16.dp)),
+                    shape     = RoundedCornerShape(16.dp),
+                    colors    = CardDefaults.cardColors(containerColor = Surface),
+                    elevation = CardDefaults.cardElevation(0.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("// LICENSE KEY", color = SUBTEXT, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-
+                    Column(
+                        modifier            = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "License Key",
+                            color      = TextMid,
+                            fontSize   = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.5.sp
+                        )
                         OutlinedTextField(
                             value         = keyInput,
                             onValueChange = { newVal ->
@@ -262,125 +218,104 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                                 keyInput  = clean.chunked(4).joinToString("-")
                                 errorMsg  = ""
                             },
-                            placeholder = { Text("XXXX-XXXX-XXXX-XXXX", color = SUBTEXT, fontFamily = FontFamily.Monospace, fontSize = 14.sp) },
-                            singleLine  = true,
-                            modifier    = Modifier.fillMaxWidth(),
-                            enabled     = online && !isActivating,
-                            textStyle   = androidx.compose.ui.text.TextStyle(
-                                color      = ACCENT,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize   = 16.sp,
-                                letterSpacing = 2.sp
-                            ),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor            = ACCENT,
-                                containerColor       = Color.Transparent,
-                                cursorColor          = ACCENT,
-                                focusedBorderColor   = ACCENT,
-                                unfocusedBorderColor = BORDER,
-                                disabledBorderColor  = BORDER.copy(0.4f),
-                                disabledTextColor    = SUBTEXT
+                            placeholder = {
+                                Text(
+                                    "XXXX-XXXX-XXXX-XXXX",
+                                    color    = TextLow,
+                                    fontSize = 14.sp
+                                )
+                            },
+                            singleLine = true,
+                            modifier   = Modifier.fillMaxWidth(),
+                            shape      = RoundedCornerShape(10.dp),
+                            colors     = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor            = TextHigh,
+                                containerColor       = InputFill,
+                                cursorColor          = Cyan,
+                                focusedBorderColor   = Cyan,
+                                unfocusedBorderColor = StrokeDefault
                             )
                         )
 
                         if (errorMsg.isNotEmpty()) {
                             Box(
-                                modifier = Modifier.fillMaxWidth()
-                                    .background(RED.copy(0.08f), RoundedCornerShape(8.dp))
-                                    .padding(10.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(RedDim, RoundedCornerShape(8.dp))
+                                    .border(0.5.dp, Red.copy(0.25f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {
-                                Text(errorMsg, color = RED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                Text(errorMsg, color = Red, fontSize = 12.sp, lineHeight = 17.sp)
                             }
                         }
 
-                        // Activate button
-                        val btnColor = when {
-                            !online      -> SUBTEXT.copy(0.3f)
-                            isActivating -> ACCENT.copy(0.5f)
-                            else         -> ACCENT
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .cyberGlowBorder(btnColor, 10.dp)
-                                .background(btnColor.copy(0.1f), RoundedCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Button(
-                                onClick = {
-                                    online = isOnline(context)
-                                    if (!online) { errorMsg = "NO SIGNAL — Connect to internet first"; return@Button }
-                                    scope.launch {
-                                        isActivating = true; errorMsg = ""
-                                        val result = withContext(Dispatchers.IO) {
-                                            LicenseManager.activateKey(context, keyInput)
-                                        }
-                                        isActivating = false
-                                        when (result) {
-                                            KeyResult.VALID_PERMANENT -> onUnlocked()
-                                            KeyResult.VALID_TRIAL     -> onUnlocked()
-                                            KeyResult.ALREADY_USED    -> errorMsg = "ERR: KEY_USED — This key is bound to another device"
-                                            KeyResult.EXPIRED         -> errorMsg = "ERR: KEY_EXPIRED — Request a new key"
-                                            KeyResult.INVALID         -> errorMsg = "ERR: KEY_INVALID — Check and try again"
-                                            KeyResult.OLD_FORMAT      -> errorMsg = "ERR: KEY_VERSION — Key not compatible with v${MainActivity.APP_VERSION}"
-                                            KeyResult.NO_INTERNET     -> { online = false; errorMsg = "ERR: NO_SIGNAL — Connect and retry" }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize(),
-                                shape    = RoundedCornerShape(10.dp),
-                                colors   = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                                enabled  = online && keyInput.length >= 4 && !isActivating,
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                if (isActivating) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = ACCENT)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("AUTHENTICATING...", color = ACCENT, fontFamily = FontFamily.Monospace, fontSize = 12.sp, letterSpacing = 2.sp)
-                                } else {
-                                    Text(
-                                        if (online) "[ ACTIVATE ]" else "[ NO SIGNAL ]",
-                                        color         = if (online) ACCENT else SUBTEXT,
-                                        fontFamily    = FontFamily.Monospace,
-                                        fontWeight    = FontWeight.Bold,
-                                        fontSize      = 14.sp,
-                                        letterSpacing = 4.sp
-                                    )
+                        Button(
+                            onClick = {
+                                when (LicenseManager.activateKey(context, keyInput)) {
+                                    KeyResult.VALID_PERMANENT -> onUnlocked()
+                                    KeyResult.VALID_TRIAL     -> onUnlocked()
+                                    KeyResult.ALREADY_USED    -> errorMsg = "This key is already linked to another device."
+                                    KeyResult.EXPIRED         -> errorMsg = "This key has expired. Request a new one."
+                                    KeyResult.INVALID         -> errorMsg = "Invalid key. Please check and try again."
+                                    KeyResult.OLD_FORMAT      -> errorMsg = "This key isn't compatible with this version."
+                                    KeyResult.NO_INTERNET     -> errorMsg = "No internet connection. Please connect and retry."
                                 }
-                            }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape    = RoundedCornerShape(10.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            enabled  = keyInput.length >= 4
+                        ) {
+                            Text(
+                                "Verify & Activate",
+                                color      = Obsidian,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize   = 14.sp,
+                                letterSpacing = 0.3.sp
+                            )
                         }
                     }
                 }
             }
 
-            // ── Device ID ────────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
+            // ── Device ID card ────────────────────────────────────────────────
+            Card(
+                modifier  = Modifier
                     .fillMaxWidth()
-                    .background(CARD.copy(0.6f), RoundedCornerShape(12.dp))
-                    .border(0.5.dp, BORDER, RoundedCornerShape(12.dp))
-                    .padding(12.dp)
+                    .border(0.5.dp, SurfaceStroke, RoundedCornerShape(12.dp)),
+                shape     = RoundedCornerShape(12.dp),
+                colors    = CardDefaults.cardColors(containerColor = Surface),
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("// DEVICE_ID", color = SUBTEXT, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-                    Text(deviceId, color = PURPLE.copy(0.8f), fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                Column(
+                    modifier            = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Device ID",
+                        color         = TextMid,
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.Medium,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        deviceId,
+                        color      = TextHigh,
+                        fontSize   = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign  = TextAlign.Center,
+                        modifier   = Modifier.fillMaxWidth(),
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        "Share this ID to receive a license key",
+                        color     = TextMid,
+                        fontSize  = 10.sp,
+                        textAlign = TextAlign.Center,
+                        modifier  = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-fun CyberButton(label: String, color: Color = NeonCyan, onClick: () -> Unit) {
-    Button(
-        onClick  = onClick,
-        modifier = Modifier.fillMaxWidth().height(46.dp),
-        shape    = RoundedCornerShape(10.dp),
-        colors   = ButtonDefaults.buttonColors(containerColor = color.copy(0.15f)),
-        border   = androidx.compose.foundation.BorderStroke(1.dp, color)
-    ) {
-        Text(label, color = color, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 2.sp)
     }
 }
