@@ -314,7 +314,7 @@ private fun SectionCard(
 
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(
+    Divider(
         modifier  = Modifier.padding(0.dp),
         thickness = 0.5.dp,
         color     = SurfaceStroke
