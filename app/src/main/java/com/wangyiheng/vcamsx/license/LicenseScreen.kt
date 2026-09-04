@@ -1,22 +1,20 @@
 package com.wangyiheng.vcamsx.license
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wangyiheng.vcamsx.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,179 +24,158 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
     var errorMsg by remember { mutableStateOf("") }
     val deviceId = remember { LicenseManager.getDeviceId(context) }
 
-    Box(
-        modifier         = Modifier.fillMaxSize().background(Obsidian),
-        contentAlignment = Alignment.Center
-    ) {
+    // ── Colors ────────────────────────────────────────────────────────────────
+    val bg      = Color(0xFF080B12)
+    val card    = Color(0xFF111622)
+    val accent  = Color(0xFF00E5FF)
+    val text    = Color(0xFFE0E4FF)
+    val subtext = Color(0xFF5A6478)
+    val red     = Color(0xFFFF4757)
+    val green   = Color(0xFF00E676)
+    val divider = Color(0xFF1C2333)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ── Dot-grid background ───────────────────────────────────────────────
+        Box(modifier = Modifier.fillMaxSize().background(bg))
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val step = 28f
+            val dotR = 0.8f
+            val dotColor = accent.copy(alpha = 0.07f)
+            var y = 0f
+            while (y < size.height) {
+                var x = 0f
+                while (x < size.width) {
+                    drawCircle(dotColor, dotR, Offset(x, y))
+                    x += step
+                }
+                y += step
+            }
+        }
+
+        // ── Content ───────────────────────────────────────────────────────────
         Column(
             modifier            = Modifier
                 .fillMaxWidth()
+                .align(Alignment.Center)
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
 
-            // ── Brand header ──────────────────────────────────────────────────
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "VCamSX",
-                    color         = TextHigh,
-                    fontSize      = 28.sp,
-                    fontWeight    = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    "Secure Access Gateway",
-                    color         = TextMid,
-                    fontSize      = 12.sp,
-                    letterSpacing = 0.5.sp
-                )
-            }
+            // 1. Camera icon
+            Text(
+                text     = if (status == LicenseStatus.CHEATER) "⛔" else "🎥",
+                fontSize = 52.sp
+            )
 
-            // ── Status card ───────────────────────────────────────────────────
+            // 2. App title
+            Text(
+                "VCamSX",
+                color      = text,
+                fontSize   = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            // 3. Status card
             Card(
-                modifier  = Modifier
-                    .fillMaxWidth()
-                    .border(0.5.dp, SurfaceStroke, RoundedCornerShape(16.dp)),
-                shape     = RoundedCornerShape(16.dp),
-                colors    = CardDefaults.cardColors(containerColor = Surface),
-                elevation = CardDefaults.cardElevation(0.dp)
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(16.dp),
+                colors   = CardDefaults.cardColors(containerColor = card)
             ) {
                 Column(
                     modifier            = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (status) {
                         LicenseStatus.FRESH -> {
                             Text(
-                                "No Active License",
-                                color      = TextHigh,
-                                fontSize   = 15.sp,
-                                fontWeight = FontWeight.SemiBold
+                                "Welcome to VCamSX",
+                                color      = accent,
+                                fontSize   = 17.sp,
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "Enter your license key below to get started.\nNeed a key? Request a free trial.",
-                                color     = TextMid,
+                                "Enter a license key to get started.\nNew user? Request a free trial key.",
+                                color     = subtext,
                                 fontSize  = 13.sp,
                                 textAlign = TextAlign.Center,
-                                lineHeight = 19.sp
+                                lineHeight = 20.sp
                             )
                         }
                         is LicenseStatus.TRIAL -> {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(Green, androidx.compose.foundation.shape.CircleShape)
-                                )
-                                Text(
-                                    "Trial License Active",
-                                    color      = Green,
-                                    fontSize   = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Text(
+                                "Free Trial Active",
+                                color      = green,
+                                fontSize   = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                             Text(
                                 "${status.minsLeft} minutes remaining",
-                                color    = TextHigh,
-                                fontSize = 14.sp
+                                color    = text,
+                                fontSize = 15.sp
                             )
-                            Spacer(Modifier.height(2.dp))
                             Button(
                                 onClick  = onUnlocked,
-                                modifier = Modifier.fillMaxWidth().height(44.dp),
-                                shape    = RoundedCornerShape(10.dp),
-                                colors   = ButtonDefaults.buttonColors(containerColor = Cyan)
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                shape    = RoundedCornerShape(12.dp),
+                                colors   = ButtonDefaults.buttonColors(containerColor = accent)
                             ) {
                                 Text(
-                                    "Continue to App",
-                                    color      = Obsidian,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize   = 14.sp
+                                    "Open App",
+                                    color      = Color(0xFF080B12),
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                         LicenseStatus.EXPIRED -> {
-                            Row(
-                                verticalAlignment     = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(Red, androidx.compose.foundation.shape.CircleShape)
-                                )
-                                Text(
-                                    "License Expired",
-                                    color      = Red,
-                                    fontSize   = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
                             Text(
-                                "Your trial period has ended.\nEnter a new key to continue.",
-                                color     = TextMid,
+                                "Trial Expired",
+                                color      = red,
+                                fontSize   = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Your trial has ended.\nEnter a license key to continue.",
+                                color     = subtext,
                                 fontSize  = 13.sp,
                                 textAlign = TextAlign.Center,
-                                lineHeight = 19.sp
+                                lineHeight = 20.sp
                             )
                         }
                         LicenseStatus.CHEATER -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(RedDim, RoundedCornerShape(10.dp))
-                                    .border(0.5.dp, Red.copy(0.3f), RoundedCornerShape(10.dp))
-                                    .padding(16.dp)
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        "Device Blocked",
-                                        color      = Red,
-                                        fontSize   = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textAlign  = TextAlign.Center
-                                    )
-                                    Text(
-                                        "Clock tampering was detected on this device.\nAccess has been permanently revoked.",
-                                        color     = Red.copy(0.7f),
-                                        fontSize  = 12.sp,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 18.sp
-                                    )
-                                    Text(
-                                        "Contact support with your Device ID to appeal.",
-                                        color     = TextMid,
-                                        fontSize  = 11.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
+                            Text(
+                                "Device Locked",
+                                color      = red,
+                                fontSize   = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Clock manipulation was detected.\nThis device is permanently banned.",
+                                color     = subtext,
+                                fontSize  = 13.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp
+                            )
+                            Text(
+                                "Contact support with your Device ID to appeal.",
+                                color    = subtext,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                         else -> {}
                     }
                 }
             }
 
-            // ── Key entry card ────────────────────────────────────────────────
+            // 4. Key entry card
             if (status != LicenseStatus.CHEATER) {
                 Card(
-                    modifier  = Modifier
-                        .fillMaxWidth()
-                        .border(0.5.dp, SurfaceStroke, RoundedCornerShape(16.dp)),
-                    shape     = RoundedCornerShape(16.dp),
-                    colors    = CardDefaults.cardColors(containerColor = Surface),
-                    elevation = CardDefaults.cardElevation(0.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    shape    = RoundedCornerShape(16.dp),
+                    colors   = CardDefaults.cardColors(containerColor = card)
                 ) {
                     Column(
                         modifier            = Modifier.padding(20.dp),
@@ -206,10 +183,9 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                     ) {
                         Text(
                             "License Key",
-                            color      = TextMid,
-                            fontSize   = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.5.sp
+                            color      = text,
+                            fontSize   = 14.sp,
+                            fontWeight = FontWeight.Medium
                         )
                         OutlinedTextField(
                             value         = keyInput,
@@ -219,100 +195,70 @@ fun LicenseScreen(status: LicenseStatus, onUnlocked: () -> Unit) {
                                 errorMsg  = ""
                             },
                             placeholder = {
-                                Text(
-                                    "XXXX-XXXX-XXXX-XXXX",
-                                    color    = TextLow,
-                                    fontSize = 14.sp
-                                )
+                                Text("XXXX-XXXX-XXXX-XXXX", color = subtext)
                             },
                             singleLine = true,
                             modifier   = Modifier.fillMaxWidth(),
-                            shape      = RoundedCornerShape(10.dp),
                             colors     = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor            = TextHigh,
-                                containerColor       = InputFill,
-                                cursorColor          = Cyan,
-                                focusedBorderColor   = Cyan,
-                                unfocusedBorderColor = StrokeDefault
+                                textColor            = text,
+                                containerColor       = Color.Transparent,
+                                cursorColor          = accent,
+                                focusedBorderColor   = accent,
+                                unfocusedBorderColor = divider
                             )
                         )
-
                         if (errorMsg.isNotEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(RedDim, RoundedCornerShape(8.dp))
-                                    .border(0.5.dp, Red.copy(0.25f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Text(errorMsg, color = Red, fontSize = 12.sp, lineHeight = 17.sp)
-                            }
+                            Text(errorMsg, color = red, fontSize = 12.sp)
                         }
-
                         Button(
                             onClick = {
                                 when (LicenseManager.activateKey(context, keyInput)) {
                                     KeyResult.VALID_PERMANENT -> onUnlocked()
                                     KeyResult.VALID_TRIAL     -> onUnlocked()
-                                    KeyResult.ALREADY_USED    -> errorMsg = "This key is already linked to another device."
+                                    KeyResult.ALREADY_USED    -> errorMsg = "This key has already been used on this device."
                                     KeyResult.EXPIRED         -> errorMsg = "This key has expired. Request a new one."
-                                    KeyResult.INVALID         -> errorMsg = "Invalid key. Please check and try again."
+                                    KeyResult.INVALID         -> errorMsg = "Invalid key. Check and try again."
                                     KeyResult.OLD_FORMAT      -> errorMsg = "This key isn't compatible with this version."
                                     KeyResult.NO_INTERNET     -> errorMsg = "No internet connection. Please connect and retry."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().height(46.dp),
-                            shape    = RoundedCornerShape(10.dp),
-                            colors   = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            shape    = RoundedCornerShape(12.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = accent),
                             enabled  = keyInput.length >= 4
                         ) {
                             Text(
-                                "Verify & Activate",
-                                color      = Obsidian,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize   = 14.sp,
-                                letterSpacing = 0.3.sp
+                                "Activate",
+                                color      = Color(0xFF080B12),
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
             }
 
-            // ── Device ID card ────────────────────────────────────────────────
+            // 5. Device ID card
             Card(
-                modifier  = Modifier
-                    .fillMaxWidth()
-                    .border(0.5.dp, SurfaceStroke, RoundedCornerShape(12.dp)),
-                shape     = RoundedCornerShape(12.dp),
-                colors    = CardDefaults.cardColors(containerColor = Surface),
-                elevation = CardDefaults.cardElevation(0.dp)
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = CardDefaults.cardColors(containerColor = card)
             ) {
                 Column(
                     modifier            = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        "Device ID",
-                        color         = TextMid,
-                        fontSize      = 10.sp,
-                        fontWeight    = FontWeight.Medium,
-                        letterSpacing = 0.5.sp
+                        "Your Device ID (share this to get a key):",
+                        color    = subtext,
+                        fontSize = 11.sp
                     )
                     Text(
                         deviceId,
-                        color      = TextHigh,
+                        color      = text,
                         fontSize   = 13.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign  = TextAlign.Center,
-                        modifier   = Modifier.fillMaxWidth(),
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        "Share this ID to receive a license key",
-                        color     = TextMid,
-                        fontSize  = 10.sp,
-                        textAlign = TextAlign.Center,
-                        modifier  = Modifier.fillMaxWidth()
+                        modifier   = Modifier.fillMaxWidth()
                     )
                 }
             }
