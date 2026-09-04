@@ -11,17 +11,39 @@ import java.util.concurrent.Executors
 
 object SupabaseClient {
 
-    // ── REPLACE THESE WITH YOUR REAL VALUES ─────────────────────────────────
     private const val BASE_URL = "https://dtecnszvepmdazskivqd.supabase.co/rest/v1"
     private const val ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0ZWNuc3p2ZXBtZGF6c2tpdnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNzgxMzgsImV4cCI6MjEwMzg1NDEzOH0.DMyNhZINNiaKp4AczZv2xx-qioShot5Ds7IXlgRNeFA"
-    // ────────────────────────────────────────────────────────────────────────
-
     private const val TABLE    = "vcamsx_users"
-    private val executor       = Executors.newSingleThreadExecutor()
-    private val iso            = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+
+    private val executor = Executors.newSingleThreadExecutor()
+    private val iso      = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         .also { it.timeZone = TimeZone.getTimeZone("UTC") }
 
-    // Called on key activation
+    enum class KeyHashResult { NOT_USED, USED_SAME_DEVICE, USED_OTHER_DEVICE, ERROR }
+
+    fun checkKeyHash(keyHash: String, deviceId: String = ""): KeyHashResult {
+        return try {
+            val resp = request("GET",
+                "$BASE_URL/$TABLE?key_hash=eq.$keyHash&select=device_id,is_revoked", null)
+                ?: return KeyHashResult.ERROR
+
+            if (resp == "[]" || resp.isEmpty()) return KeyHashResult.NOT_USED
+
+            val existingDevice = Regex("\"device_id\":\"([^\"]+)\"").find(resp)?.groupValues?.get(1)
+            val revoked        = resp.contains("\"is_revoked\":true")
+
+            when {
+                revoked                          -> KeyHashResult.USED_OTHER_DEVICE
+                existingDevice == null           -> KeyHashResult.NOT_USED
+                existingDevice == deviceId       -> KeyHashResult.USED_SAME_DEVICE
+                else                             -> KeyHashResult.USED_OTHER_DEVICE
+            }
+        } catch (e: Exception) {
+            Log.e("VCamSX-Supabase", "checkKeyHash FAILED: ${e.message}")
+            KeyHashResult.ERROR
+        }
+    }
+
     fun recordActivation(deviceId: String, keyHash: String, keyType: String, expiresAt: Date?) {
         executor.execute {
             try {
@@ -41,38 +63,42 @@ object SupabaseClient {
                     body.toString(),
                     mapOf("Prefer" to "resolution=merge-duplicates,return=representation")
                 )
-                Log.d("VCamSX-Supabase", "recordActivation response: $resp")
+                Log.d("VCamSX-Supabase", "recordActivation: $resp")
             } catch (e: Exception) {
                 Log.e("VCamSX-Supabase", "recordActivation FAILED: ${e.message}")
             }
         }
     }
 
-    // Called on every launch — updates last_seen, checks revoke status
     fun ping(deviceId: String, onRevoked: () -> Unit) {
         executor.execute {
             try {
-                // Update last_seen
-                val body = JSONObject().apply {
-                    put("last_seen_at", iso.format(Date()))
-                }
+                val body = JSONObject().apply { put("last_seen_at", iso.format(Date())) }
                 request("PATCH", "$BASE_URL/$TABLE?device_id=eq.$deviceId", body.toString())
 
-                // Check revoke status
                 val resp = request("GET",
                     "$BASE_URL/$TABLE?device_id=eq.$deviceId&select=is_revoked", null)
-                Log.d("VCamSX-Supabase", "ping response: $resp")
+                Log.d("VCamSX-Supabase", "ping: $resp")
 
-                if (resp?.contains("\"is_revoked\":true") == true) {
-                    onRevoked()
-                }
+                if (resp?.contains("\"is_revoked\":true") == true) onRevoked()
             } catch (e: Exception) {
                 Log.e("VCamSX-Supabase", "ping FAILED: ${e.message}")
             }
         }
     }
 
-    // Called when reinstall detected
+    fun getMinVersion(): String? {
+        return try {
+            val resp = request("GET",
+                "$BASE_URL/app_config?key=eq.min_version&select=value", null)
+                ?: return null
+            Regex("\"value\":\"([^\"]+)\"").find(resp)?.groupValues?.get(1)
+        } catch (e: Exception) {
+            Log.e("VCamSX-Supabase", "getMinVersion FAILED: ${e.message}")
+            null
+        }
+    }
+
     fun recordReinstall(deviceId: String) {
         executor.execute {
             try {
@@ -81,13 +107,12 @@ object SupabaseClient {
                 val current = resp?.let {
                     Regex("\"install_count\":(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull()
                 } ?: 1
-
                 val body = JSONObject().apply {
                     put("install_count", current + 1)
                     put("last_seen_at",  iso.format(Date()))
                 }
                 request("PATCH", "$BASE_URL/$TABLE?device_id=eq.$deviceId", body.toString())
-                Log.d("VCamSX-Supabase", "reinstall recorded, count=${current + 1}")
+                Log.d("VCamSX-Supabase", "reinstall recorded count=${current + 1}")
             } catch (e: Exception) {
                 Log.e("VCamSX-Supabase", "recordReinstall FAILED: ${e.message}")
             }
@@ -110,12 +135,10 @@ object SupabaseClient {
             extraHeaders.forEach { (k, v) -> conn.setRequestProperty(k, v) }
             conn.connectTimeout = 8000
             conn.readTimeout    = 8000
-
             if (body != null) {
                 conn.doOutput = true
                 OutputStreamWriter(conn.outputStream).use { it.write(body) }
             }
-
             val code   = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val result = stream?.bufferedReader()?.readText()
