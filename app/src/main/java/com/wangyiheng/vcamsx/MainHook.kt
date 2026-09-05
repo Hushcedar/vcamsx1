@@ -484,11 +484,14 @@ class MainHook : IXposedHookLoadPackage {
     }
 
 
+
+
     private fun hookAudioRecord(lpparam: XC_LoadPackage.LoadPackageParam) {
         try {
             XposedHelpers.findAndHookMethod(
                 "android.media.AudioRecord", lpparam.classLoader,
-                "read", ByteArray::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                "read", ByteArray::class.java,
+                Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val status = InfoProcesser.videoStatus ?: return
@@ -496,29 +499,30 @@ class MainHook : IXposedHookLoadPackage {
                         val buf    = param.args[0] as? ByteArray ?: return
                         val offset = param.args[1] as? Int ?: 0
                         val size   = param.args[2] as? Int ?: buf.size
-                        val written = AudioInjector.read(buf, offset, size)
-                        if (written > 0) param.result = written
+                        val n = AudioInjector.read(buf, offset, size)
+                        if (n > 0) param.result = n
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(byte[]): $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read[]: $e") }
 
         try {
             XposedHelpers.findAndHookMethod(
                 "android.media.AudioRecord", lpparam.classLoader,
-                "read", java.nio.ByteBuffer::class.java, Int::class.javaPrimitiveType,
+                "read", java.nio.ByteBuffer::class.java,
+                Int::class.javaPrimitiveType,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val status = InfoProcesser.videoStatus ?: return
                         if (!status.isVideoEnable || !status.volume) return
                         val buf  = param.args[0] as? java.nio.ByteBuffer ?: return
                         val size = param.args[1] as? Int ?: return
-                        val written = AudioInjector.read(buf, size)
-                        if (written > 0) param.result = written
+                        val n = AudioInjector.read(buf, size)
+                        if (n > 0) param.result = n
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(ByteBuffer): $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(BB): $e") }
 
         try {
             XposedHelpers.findAndHookMethod(
@@ -530,7 +534,6 @@ class MainHook : IXposedHookLoadPackage {
                         if (status.isVideoEnable && status.volume) {
                             AudioInjector.enabled = true
                             AudioInjector.start()
-                            XposedBridge.log("$TAG AudioInjector started on startRecording()")
                         }
                     }
                 }
@@ -545,7 +548,6 @@ class MainHook : IXposedHookLoadPackage {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         AudioInjector.enabled = false
                         AudioInjector.stop()
-                        XposedBridge.log("$TAG AudioInjector stopped on stop()")
                     }
                 }
             )
