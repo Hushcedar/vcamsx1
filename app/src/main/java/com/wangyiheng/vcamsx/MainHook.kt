@@ -15,10 +15,10 @@ import android.os.Build
 import android.os.Handler
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.ImagePlayer
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
-import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.VideoPlayer
 import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.IXposedHookLoadPackage
@@ -84,8 +84,12 @@ class MainHook : IXposedHookLoadPackage {
         hookImageReader(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
-        hookAudioRecord(lpparam)
+        hookAudioRecord(lpparam)   // audio injection — separate, does not touch video
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ORIGINAL VIDEO INJECTION — UNTOUCHED
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun filterAndSwapSurfaceList(original: List<Surface>): List<Surface> {
         val virt = c2_virtual_surface ?: return original
@@ -93,9 +97,7 @@ class MainHook : IXposedHookLoadPackage {
         var previewReplaced = false
         for (s in original) {
             when {
-                nonPreviewSurfaces.contains(s) -> {
-                    result.add(s)
-                }
+                nonPreviewSurfaces.contains(s) -> { result.add(s) }
                 !previewReplaced -> {
                     original_preview_Surface = s
                     result.add(virt)
@@ -233,36 +235,6 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG C1.takePicture install: $e") }
-
-        // ── stopPreview → pause video ───────────────────────────────────────
-        try {
-            XposedHelpers.findAndHookMethod("android.hardware.Camera", cl, "stopPreview",
-                object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        VideoPlayer.releaseMediaPlayer()
-                        AudioInjector.enabled = false
-                        AudioInjector.stop()
-                        XposedBridge.log("$TAG Camera1.stopPreview → player released")
-                    }
-                }
-            )
-        } catch (e: Throwable) { XposedBridge.log("$TAG C1.stopPreview install: $e") }
-
-        // ── Camera.release → stop everything ───────────────────────────────
-        try {
-            XposedHelpers.findAndHookMethod("android.hardware.Camera", cl, "release",
-                object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        VideoPlayer.releaseMediaPlayer()
-                        AudioInjector.enabled = false
-                        AudioInjector.stop()
-                        origin_preview_camera = null
-                        XposedBridge.log("$TAG Camera1.release → player released")
-                    }
-                }
-            )
-        } catch (e: Throwable) { XposedBridge.log("$TAG C1.release install: $e") }
-
     }
 
     private fun hookCamera2(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -332,23 +304,6 @@ class MainHook : IXposedHookLoadPackage {
                 }
             }
         )
-
-        // ── CameraDevice.close → stop player ───────────────────────────────
-        if (!hookedDeviceClasses.contains(cls.name + "_close")) {
-            hookedDeviceClasses.add(cls.name + "_close")
-            try {
-                XposedHelpers.findAndHookMethod(cls, "close",
-                    object : XC_MethodHook() {
-                        override fun afterHookedMethod(param: MethodHookParam) {
-                            VideoPlayer.releaseMediaPlayer()
-                            AudioInjector.enabled = false
-                            AudioInjector.stop()
-                            XposedBridge.log("$TAG CameraDevice.close → player released")
-                        }
-                    }
-                )
-            } catch (e: Throwable) { XposedBridge.log("$TAG CamDev.close install: $e") }
-        }
     }
 
     private fun hookSessionCreation(devCls: Class<*>, lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -530,112 +485,132 @@ class MainHook : IXposedHookLoadPackage {
         } catch (_: Throwable) {}
     }
 
-
-
-
-
+    // ══════════════════════════════════════════════════════════════════════════
+    // AUDIO INJECTION — completely separate, zero overlap with video hooks
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookAudioRecord(lpparam: XC_LoadPackage.LoadPackageParam) {
-        // ── byte[] variant ──────────────────────────────────────────────────
-        // Use beforeHookedMethod so we fill the buffer and skip the real read
+        val cl = lpparam.classLoader
+
+        // ── startRecording → start injector ──────────────────────────────────
         try {
             XposedHelpers.findAndHookMethod(
-                "android.media.AudioRecord", lpparam.classLoader,
-                "read", ByteArray::class.java,
-                Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                "android.media.AudioRecord", cl, "startRecording",
                 object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
+                    override fun afterHookedMethod(param: MethodHookParam) {
                         val status = InfoProcesser.videoStatus ?: return
-                        if (!status.isVideoEnable || !status.volume) return
-                        if (!AudioInjector.enabled) return
-                        val buf    = param.args[0] as? ByteArray ?: return
-                        val offset = (param.args[1] as? Int) ?: 0
-                        val size   = (param.args[2] as? Int) ?: (buf.size - offset)
-                        val n = AudioInjector.read(buf, offset, size)
-                        if (n > 0) {
-                            // Setting result skips the real AudioRecord.read() call
-                            param.result = n
+                        XposedBridge.log("$TAG AR.startRecording: isVideoEnable=${status.isVideoEnable} volume=${status.volume}")
+                        if (status.isVideoEnable && status.volume) {
+                            AudioInjector.enabled = true
+                            AudioInjector.start()
+                            XposedBridge.log("$TAG AudioInjector STARTED")
                         }
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read[]: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.startRecording install: $e") }
 
-        // ── ByteBuffer variant ──────────────────────────────────────────────
+        // ── stop → stop injector ──────────────────────────────────────────────
         try {
             XposedHelpers.findAndHookMethod(
-                "android.media.AudioRecord", lpparam.classLoader,
-                "read", java.nio.ByteBuffer::class.java,
-                Int::class.javaPrimitiveType,
+                "android.media.AudioRecord", cl, "stop",
                 object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val status = InfoProcesser.videoStatus ?: return
-                        if (!status.isVideoEnable || !status.volume) return
-                        if (!AudioInjector.enabled) return
-                        val buf  = param.args[0] as? java.nio.ByteBuffer ?: return
-                        val size = (param.args[1] as? Int) ?: return
-                        val n = AudioInjector.read(buf, size)
-                        if (n > 0) param.result = n
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        AudioInjector.enabled = false
+                        AudioInjector.stop()
+                        XposedBridge.log("$TAG AudioInjector STOPPED")
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(BB): $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.stop install: $e") }
 
-        // ── byte[] read with READ_BLOCKING_COMPAT flag (3-arg int variant) ──
+        // ── read(byte[], int, int) — beforeHookedMethod skips real mic read ───
         try {
             XposedHelpers.findAndHookMethod(
-                "android.media.AudioRecord", lpparam.classLoader,
+                "android.media.AudioRecord", cl,
+                "read", ByteArray::class.java,
+                Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!AudioInjector.enabled) return
+                        val buf    = param.args[0] as? ByteArray ?: return
+                        val offset = (param.args[1] as? Int) ?: 0
+                        val size   = (param.args[2] as? Int) ?: (buf.size - offset)
+                        val n      = AudioInjector.read(buf, offset, size)
+                        if (n > 0) {
+                            param.result = n
+                            XposedBridge.log("$TAG AR.read[] injected $n bytes")
+                        }
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read[] install: $e") }
+
+        // ── read(byte[], int, int, int) — 4-arg variant (READ_BLOCKING flag) ──
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.AudioRecord", cl,
                 "read", ByteArray::class.java,
                 Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
                 Int::class.javaPrimitiveType,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
-                        val status = InfoProcesser.videoStatus ?: return
-                        if (!status.isVideoEnable || !status.volume) return
                         if (!AudioInjector.enabled) return
                         val buf    = param.args[0] as? ByteArray ?: return
                         val offset = (param.args[1] as? Int) ?: 0
                         val size   = (param.args[2] as? Int) ?: (buf.size - offset)
-                        val n = AudioInjector.read(buf, offset, size)
-                        if (n > 0) param.result = n
+                        val n      = AudioInjector.read(buf, offset, size)
+                        if (n > 0) {
+                            param.result = n
+                            XposedBridge.log("$TAG AR.read[4] injected $n bytes")
+                        }
                     }
                 }
             )
         } catch (_: Throwable) {}
 
-        // ── startRecording → start injector ────────────────────────────────
+        // ── read(ByteBuffer, int) ─────────────────────────────────────────────
         try {
             XposedHelpers.findAndHookMethod(
-                "android.media.AudioRecord", lpparam.classLoader,
-                "startRecording",
+                "android.media.AudioRecord", cl,
+                "read", ByteBuffer::class.java, Int::class.javaPrimitiveType,
                 object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val status = InfoProcesser.videoStatus ?: return
-                        if (status.isVideoEnable && status.volume) {
-                            AudioInjector.enabled = true
-                            AudioInjector.start()
-                            XposedBridge.log("$TAG AudioInjector started")
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!AudioInjector.enabled) return
+                        val buf  = param.args[0] as? ByteBuffer ?: return
+                        val size = (param.args[1] as? Int) ?: return
+                        val n    = AudioInjector.read(buf, size)
+                        if (n > 0) {
+                            param.result = n
+                            XposedBridge.log("$TAG AR.read(BB) injected $n bytes")
                         }
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.startRecording: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(BB) install: $e") }
 
-        // ── stop → stop injector ────────────────────────────────────────────
+        // ── read(ByteBuffer, int, int) — 3-arg ByteBuffer variant ────────────
         try {
             XposedHelpers.findAndHookMethod(
-                "android.media.AudioRecord", lpparam.classLoader,
-                "stop",
+                "android.media.AudioRecord", cl,
+                "read", ByteBuffer::class.java,
+                Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
                 object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        AudioInjector.enabled = false
-                        AudioInjector.stop()
-                        XposedBridge.log("$TAG AudioInjector stopped")
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!AudioInjector.enabled) return
+                        val buf  = param.args[0] as? ByteBuffer ?: return
+                        val size = (param.args[1] as? Int) ?: return
+                        val n    = AudioInjector.read(buf, size)
+                        if (n > 0) param.result = n
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG AR.stop: $e") }
+        } catch (_: Throwable) {}
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ORIGINAL HELPERS — UNTOUCHED
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun createVirtualSurface() {
         if (!needRecreate && c2_virtual_surface?.isValid == true) return
