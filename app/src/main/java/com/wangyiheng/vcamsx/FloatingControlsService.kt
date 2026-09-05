@@ -7,7 +7,6 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -18,29 +17,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.*
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.*
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.wangyiheng.vcamsx.ui.theme.*
 
 class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private lateinit var windowManager: WindowManager
     private var floatView: android.view.View? = null
-    private val lifecycleRegistry          = LifecycleRegistry(this)
+    private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
@@ -91,7 +83,10 @@ class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwn
             setContent {
                 FloatingUI(
                     context = this@FloatingControlsService,
-                    onMove  = { dx, dy -> params.x += dx.toInt(); params.y += dy.toInt(); windowManager.updateViewLayout(floatView, params) },
+                    onMove  = { dx, dy ->
+                        params.x += dx.toInt(); params.y += dy.toInt()
+                        windowManager.updateViewLayout(floatView, params)
+                    },
                     onClose = { stop(this@FloatingControlsService) }
                 )
             }
@@ -118,78 +113,22 @@ class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwn
     }
 
     private fun buildNotification() = Notification.Builder(this, "vcamsx_ctrl")
-        .setContentTitle("VCamSX Active")
+        .setContentTitle("VCamSX Controls")
         .setSmallIcon(android.R.drawable.ic_media_play)
         .build()
 }
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-private val BG      = Color(0xF0000010)
-private val CARD    = Color(0xF007071A)
-private val ACCENT  = NeonCyan
-private val PURPLE  = NeonPurple
-private val GREEN   = NeonGreen
-private val RED     = NeonRed
-private val ORANGE  = NeonOrange
-private val TEXT    = CyberText
-private val DIM     = CyberSubtext
-private val BORDER  = Color(0xFF1A1A40)
+// ── Colors — matches app exactly ──────────────────────────────────────────────
+private val PanelBg   = Color(0xFF080B12)   // same as license/home bg
+private val CardBg    = Color(0xFF111622)   // same card color
+private val Accent    = Color(0xFF00E5FF)   // same cyan
+private val TextHigh  = Color(0xFFE0E4FF)   // same off-white
+private val TextDim   = Color(0xFF5A6478)   // same subtext
+private val Divider   = Color(0xFF1C2333)   // same divider
+private val GreenCol  = Color(0xFF00E676)
+private val RedCol    = Color(0xFFFF4757)
+private val OrbBg     = Color(0xFF111622)
 
-// ── Glow modifier ─────────────────────────────────────────────────────────────
-@Composable
-private fun Modifier.neonGlow(color: Color, radius: Dp = 12.dp): Modifier =
-    this.border(1.dp, Brush.linearGradient(listOf(color.copy(0.9f), PURPLE.copy(0.4f), color.copy(0.9f))), RoundedCornerShape(radius))
-        .drawBehind {
-            drawRoundRect(color = color.copy(0.1f), topLeft = Offset(-4f,-4f),
-                size = size.copy(size.width+8, size.height+8),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius.toPx()),
-                style = Stroke(8f))
-        }
-
-// ── Neon orb ─────────────────────────────────────────────────────────────────
-@Composable
-private fun NeonOrb(onClick: () -> Unit, onMove: (Float, Float) -> Unit) {
-    val pulse by rememberInfiniteTransition(label = "orb").animateFloat(
-        0.4f, 1f, infiniteRepeatable(tween(1200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p"
-    )
-    val ring by rememberInfiniteTransition(label = "ring").animateFloat(
-        0f, 360f, infiniteRepeatable(tween(4000, easing = LinearEasing)), label = "r"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(60.dp)
-            .pointerInput(Unit) { detectDragGestures { _, d -> onMove(d.x, d.y) } },
-        contentAlignment = Alignment.Center
-    ) {
-        // Outer glow ring
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .drawBehind {
-                    drawCircle(
-                        brush  = Brush.sweepGradient(listOf(ACCENT.copy(pulse * 0.6f), PURPLE.copy(0.2f), ACCENT.copy(pulse * 0.6f))),
-                        radius = size.minDimension / 2f,
-                        style  = Stroke(2f)
-                    )
-                    drawCircle(color = ACCENT.copy(pulse * 0.15f), radius = size.minDimension / 2f)
-                }
-        )
-        // Inner button
-        Button(
-            onClick        = onClick,
-            modifier       = Modifier.size(46.dp),
-            shape          = CircleShape,
-            colors         = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A0A25)),
-            contentPadding = PaddingValues(0.dp),
-            border         = androidx.compose.foundation.BorderStroke(1.dp, ACCENT.copy(pulse))
-        ) {
-            Text("⬡", fontSize = 20.sp, color = ACCENT.copy(pulse))
-        }
-    }
-}
-
-// ── Main floating UI ──────────────────────────────────────────────────────────
 @Composable
 fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> Unit) {
     var expanded   by remember { mutableStateOf(false) }
@@ -199,138 +138,149 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
     var isFlipped  by remember { mutableStateOf(false) }
 
     if (!expanded) {
-        NeonOrb(onClick = { expanded = true }, onMove = onMove)
-    } else {
+        // ── Collapsed orb — clean dot ──────────────────────────────────────
         Box(
-            modifier = Modifier
-                .width(230.dp)
-                .neonGlow(ACCENT)
-                .background(
-                    Brush.linearGradient(listOf(CARD, Color(0xFF05051A))),
-                    RoundedCornerShape(16.dp)
+            modifier         = Modifier
+                .size(48.dp)
+                .pointerInput(Unit) { detectDragGestures { _, d -> onMove(d.x, d.y) } },
+            contentAlignment = Alignment.Center
+        ) {
+            Button(
+                onClick        = { expanded = true },
+                modifier       = Modifier.size(48.dp),
+                shape          = CircleShape,
+                colors         = ButtonDefaults.buttonColors(containerColor = OrbBg),
+                border         = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(0.5f)),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(Accent, CircleShape)
                 )
+            }
+        }
+    } else {
+        // ── Expanded panel ───────────────────────────────────────────────────
+        Card(
+            shape    = RoundedCornerShape(16.dp),
+            colors   = CardDefaults.cardColors(containerColor = PanelBg),
+            modifier = Modifier
+                .width(220.dp)
+                .border(0.5.dp, Divider, RoundedCornerShape(16.dp))
                 .pointerInput(Unit) { detectDragGestures { _, d -> onMove(d.x, d.y) } }
         ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-
-                // ── Header ───────────────────────────────────────────────
+            Column(
+                Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Header
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // Pulsing active dot
-                        val dotAlpha by rememberInfiniteTransition(label="hdr").animateFloat(
-                            0.3f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label="d"
-                        )
-                        Box(Modifier.size(6.dp).background(GREEN.copy(dotAlpha), CircleShape))
-                        Text("VCAMSX", color = ACCENT, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
-                    }
+                    Text(
+                        "Controls",
+                        color      = TextHigh,
+                        fontSize   = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     TextButton(
                         onClick        = { expanded = false; showAdjust = false },
                         contentPadding = PaddingValues(0.dp)
-                    ) { Text("—", color = DIM, fontSize = 16.sp) }
+                    ) {
+                        Text("—", color = TextDim, fontSize = 16.sp)
+                    }
                 }
 
-                // Neon divider
-                Box(Modifier.fillMaxWidth().height(0.5.dp).background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, ACCENT.copy(0.5f), PURPLE.copy(0.5f), Color.Transparent))
-                ))
+                Divider(color = Divider, thickness = 0.5.dp)
 
                 if (!showAdjust) {
-                    // ── Main controls ─────────────────────────────────────
-                    NeonFBtn(
-                        label = if (isPaused) "▶  RESUME" else "⏸  PAUSE",
-                        color = if (isPaused) GREEN else ACCENT
+                    // Main controls
+                    FBtn(
+                        label = if (isPaused) "Resume" else "Pause",
+                        color = if (isPaused) GreenCol else Accent
                     ) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_PAUSE)
                         isPaused = !isPaused
                     }
-                    NeonFBtn("↺  RELOAD", ACCENT) {
+                    FBtn("Reload", Accent) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_RELOAD)
                         isPaused = false
                     }
-                    NeonFBtn("⟳  ROTATE  ($rotation°)", PURPLE) {
+                    FBtn("Rotate  ($rotation°)", Accent) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ROTATE)
                         rotation = (rotation + 90) % 360
                     }
-                    NeonFBtn(
-                        label = if (isFlipped) "↔  FLIP  [ON]" else "↔  FLIP  [OFF]",
-                        color = if (isFlipped) ORANGE else ACCENT
+                    FBtn(
+                        label = if (isFlipped) "Flip  ON" else "Flip  OFF",
+                        color = if (isFlipped) Color(0xFFFFB300) else Accent
                     ) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_FLIP)
                         isFlipped = !isFlipped
                     }
-                    NeonFBtn("⤢  ADJUST POSITION", PURPLE) { showAdjust = true }
+                    FBtn("Adjust", TextDim) { showAdjust = true }
 
                 } else {
-                    // ── Adjust panel ──────────────────────────────────────
-                    Text("// ADJUST_OFFSET", color = DIM, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-
+                    // Adjust panel
+                    Text(
+                        "Adjust Position",
+                        color      = TextDim,
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        NeonFBtn("▲", ACCENT, 70) {
+                        FBtn("Up", Accent, 80) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, -30)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        NeonFBtn("◄", ACCENT, 70) {
+                        FBtn("Left", Accent, 90) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, -30, 0)
                         }
-                        NeonFBtn("►", ACCENT, 70) {
+                        FBtn("Right", Accent, 90) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 30, 0)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        NeonFBtn("▼", ACCENT, 70) {
+                        FBtn("Down", Accent, 80) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, 30)
                         }
                     }
 
-                    Box(Modifier.fillMaxWidth().height(0.5.dp).background(
-                        Brush.horizontalGradient(listOf(Color.Transparent, BORDER, Color.Transparent))
-                    ))
+                    Divider(color = Divider, thickness = 0.5.dp)
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        NeonFBtn("➕ ZOOM IN",  GREEN, 102) {
+                        FBtn("Zoom In",  GreenCol, 100) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_IN)
                         }
-                        NeonFBtn("➖ ZOOM OUT", RED, 102) {
+                        FBtn("Zoom Out", RedCol, 100) {
                             FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_OUT)
                         }
                     }
-                    NeonFBtn("↩  BACK", DIM.copy(0.5f)) { showAdjust = false }
+                    FBtn("Back", TextDim) { showAdjust = false }
                 }
 
-                // Bottom neon divider
-                Box(Modifier.fillMaxWidth().height(0.5.dp).background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, RED.copy(0.4f), Color.Transparent))
-                ))
-
-                NeonFBtn("✕  CLOSE OVERLAY", RED) { onClose() }
+                Divider(color = Divider, thickness = 0.5.dp)
+                FBtn("Close", RedCol) { onClose() }
             }
         }
     }
 }
 
-// ── Neon button ───────────────────────────────────────────────────────────────
 @Composable
-fun NeonFBtn(label: String, color: Color, width: Int = 0, onClick: () -> Unit) {
-    val mod = if (width > 0) Modifier.width(width.dp).height(36.dp)
-              else Modifier.fillMaxWidth().height(36.dp)
+fun FBtn(label: String, color: Color, width: Int = 0, onClick: () -> Unit) {
+    val mod = if (width > 0) Modifier.width(width.dp).height(38.dp)
+              else Modifier.fillMaxWidth().height(38.dp)
     Button(
         onClick        = onClick,
         modifier       = mod,
         shape          = RoundedCornerShape(8.dp),
-        colors         = ButtonDefaults.buttonColors(containerColor = color.copy(0.1f)),
-        border         = androidx.compose.foundation.BorderStroke(0.5.dp, color.copy(0.7f)),
+        colors         = ButtonDefaults.buttonColors(containerColor = CardBg),
+        border         = androidx.compose.foundation.BorderStroke(0.5.dp, color.copy(0.5f)),
         contentPadding = PaddingValues(horizontal = 6.dp)
     ) {
-        Text(label, color = color, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
-
-// Compat alias
-@Composable
-fun FBtn(label: String, color: Color, width: Int = 0, onClick: () -> Unit) =
-    NeonFBtn(label, color, width, onClick)

@@ -33,7 +33,7 @@ import com.wangyiheng.vcamsx.modules.home.controllers.HomeController
 import com.wangyiheng.vcamsx.utils.ImagePlayer
 
 // ── Colors ────────────────────────────────────────────────────────────────────
-private val BgColor      = Color(0xFF040607)   // near-black background
+private val BgColor      = Color(0xFF080B12)   // matches LicenseScreen
 private val CardColor    = Color(0xFF111622)   // card background
 private val CardRaised   = Color(0xFF1A1F2A)   // elevated card
 private val AccentColor  = Color(0xFF00E5FF)   // cyan accent
@@ -236,7 +236,7 @@ fun HomeScreen() {
                 colors   = ButtonDefaults.buttonColors(containerColor = AccentColor)
             ) {
                 Text(
-                    "Launch Overlay Controls",
+                    "Controls",
                     color      = Color(0xFF040607),
                     fontWeight = FontWeight.Bold,
                     fontSize   = 15.sp
