@@ -11,8 +11,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
-        // IjkPlayer mirror — Aliyun was down, using direct Maven Central + jitpack fallback
-        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        // IjkPlayer + PickerView — only available on this Aliyun endpoint
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        // Fallback direct Maven Central
         maven { url = uri("https://repo1.maven.org/maven2/") }
     }
 }
