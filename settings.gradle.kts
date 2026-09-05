@@ -11,7 +11,9 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        // IjkPlayer mirror — Aliyun was down, using direct Maven Central + jitpack fallback
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        maven { url = uri("https://repo1.maven.org/maven2/") }
     }
 }
 rootProject.name = "vcamsx"
