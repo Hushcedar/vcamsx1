@@ -7,6 +7,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -17,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
@@ -170,100 +172,117 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                 .border(0.5.dp, Divider, RoundedCornerShape(16.dp))
                 .pointerInput(Unit) { detectDragGestures { _, d -> onMove(d.x, d.y) } }
         ) {
-            Column(
-                Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Header
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Controls",
-                        color      = TextHigh,
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    TextButton(
-                        onClick        = { expanded = false; showAdjust = false },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("—", color = TextDim, fontSize = 16.sp)
+            Box {
+                // Dot-grid background — matches app UI
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val step   = 24f
+                    val dotR   = 0.7f
+                    val dotCol = Color(0xFF00E5FF).copy(alpha = 0.06f)
+                    var yy = 0f
+                    while (yy < size.height) {
+                        var xx = 0f
+                        while (xx < size.width) {
+                            drawCircle(dotCol, dotR, Offset(xx, yy))
+                            xx += step
+                        }
+                        yy += step
                     }
                 }
-
-                Divider(color = Divider, thickness = 0.5.dp)
-
-                if (!showAdjust) {
-                    // Main controls
-                    FBtn(
-                        label = if (isPaused) "Resume" else "Pause",
-                        color = if (isPaused) GreenCol else Accent
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Header
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
                     ) {
-                        FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_PAUSE)
-                        isPaused = !isPaused
-                    }
-                    FBtn("Reload", Accent) {
-                        FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_RELOAD)
-                        isPaused = false
-                    }
-                    FBtn("Rotate  ($rotation°)", Accent) {
-                        FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ROTATE)
-                        rotation = (rotation + 90) % 360
-                    }
-                    FBtn(
-                        label = if (isFlipped) "Flip  ON" else "Flip  OFF",
-                        color = if (isFlipped) Color(0xFFFFB300) else Accent
-                    ) {
-                        FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_FLIP)
-                        isFlipped = !isFlipped
-                    }
-                    FBtn("Adjust", TextDim) { showAdjust = true }
-
-                } else {
-                    // Adjust panel
-                    Text(
-                        "Adjust Position",
-                        color      = TextDim,
-                        fontSize   = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        FBtn("Up", Accent, 80) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, -30)
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        FBtn("Left", Accent, 90) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, -30, 0)
-                        }
-                        FBtn("Right", Accent, 90) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 30, 0)
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        FBtn("Down", Accent, 80) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, 30)
+                        Text(
+                            "Controls",
+                            color      = TextHigh,
+                            fontSize   = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(
+                            onClick        = { expanded = false; showAdjust = false },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("—", color = TextDim, fontSize = 16.sp)
                         }
                     }
 
                     Divider(color = Divider, thickness = 0.5.dp)
 
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        FBtn("Zoom In",  GreenCol, 100) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_IN)
+                    if (!showAdjust) {
+                        // Main controls
+                        FBtn(
+                            label = if (isPaused) "Resume" else "Pause",
+                            color = if (isPaused) GreenCol else Accent
+                        ) {
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_PAUSE)
+                            isPaused = !isPaused
                         }
-                        FBtn("Zoom Out", RedCol, 100) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_OUT)
+                        FBtn("Reload", Accent) {
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_RELOAD)
+                            isPaused = false
                         }
-                    }
-                    FBtn("Back", TextDim) { showAdjust = false }
-                }
+                        FBtn("Rotate  ($rotation°)", Accent) {
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ROTATE)
+                            rotation = (rotation + 90) % 360
+                        }
+                        FBtn(
+                            label = if (isFlipped) "Flip  ON" else "Flip  OFF",
+                            color = if (isFlipped) Color(0xFFFFB300) else Accent
+                        ) {
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_FLIP)
+                            isFlipped = !isFlipped
+                        }
+                        FBtn("Adjust", TextDim) { showAdjust = true }
 
-                Divider(color = Divider, thickness = 0.5.dp)
-                FBtn("Close", RedCol) { onClose() }
+                    } else {
+                        // Adjust panel
+                        Text(
+                            "Adjust Position",
+                            color      = TextDim,
+                            fontSize   = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            FBtn("Up", Accent, 80) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, -30)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            FBtn("Left", Accent, 90) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, -30, 0)
+                            }
+                            FBtn("Right", Accent, 90) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 30, 0)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            FBtn("Down", Accent, 80) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, 30)
+                            }
+                        }
+
+                        Divider(color = Divider, thickness = 0.5.dp)
+
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            FBtn("Zoom In",  GreenCol, 100) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_IN)
+                            }
+                            FBtn("Zoom Out", RedCol, 100) {
+                                FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ZOOM_OUT)
+                            }
+                        }
+                        FBtn("Back", TextDim) { showAdjust = false }
+                    }
+
+                    Divider(color = Divider, thickness = 0.5.dp)
+                    FBtn("Close", RedCol) { onClose() }
+                }
             }
         }
     }

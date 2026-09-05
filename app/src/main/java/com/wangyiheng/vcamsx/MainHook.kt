@@ -18,6 +18,7 @@ import android.view.SurfaceHolder
 import com.wangyiheng.vcamsx.utils.ImagePlayer
 import com.wangyiheng.vcamsx.utils.InfoProcesser
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
+import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.VideoPlayer
 import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.IXposedHookLoadPackage
@@ -83,6 +84,7 @@ class MainHook : IXposedHookLoadPackage {
         hookImageReader(lpparam)
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
+        hookAudioRecord(lpparam)
     }
 
     private fun filterAndSwapSurfaceList(original: List<Surface>): List<Surface> {
@@ -479,6 +481,75 @@ class MainHook : IXposedHookLoadPackage {
                 }
             )
         } catch (_: Throwable) {}
+    }
+
+
+    private fun hookAudioRecord(lpparam: XC_LoadPackage.LoadPackageParam) {
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.AudioRecord", lpparam.classLoader,
+                "read", ByteArray::class.java, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val status = InfoProcesser.videoStatus ?: return
+                        if (!status.isVideoEnable || !status.volume) return
+                        val buf    = param.args[0] as? ByteArray ?: return
+                        val offset = param.args[1] as? Int ?: 0
+                        val size   = param.args[2] as? Int ?: buf.size
+                        val written = AudioInjector.read(buf, offset, size)
+                        if (written > 0) param.result = written
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(byte[]): $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.AudioRecord", lpparam.classLoader,
+                "read", java.nio.ByteBuffer::class.java, Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val status = InfoProcesser.videoStatus ?: return
+                        if (!status.isVideoEnable || !status.volume) return
+                        val buf  = param.args[0] as? java.nio.ByteBuffer ?: return
+                        val size = param.args[1] as? Int ?: return
+                        val written = AudioInjector.read(buf, size)
+                        if (written > 0) param.result = written
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.read(ByteBuffer): $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.AudioRecord", lpparam.classLoader,
+                "startRecording",
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val status = InfoProcesser.videoStatus ?: return
+                        if (status.isVideoEnable && status.volume) {
+                            AudioInjector.enabled = true
+                            AudioInjector.start()
+                            XposedBridge.log("$TAG AudioInjector started on startRecording()")
+                        }
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.startRecording: $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.media.AudioRecord", lpparam.classLoader,
+                "stop",
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        AudioInjector.enabled = false
+                        AudioInjector.stop()
+                        XposedBridge.log("$TAG AudioInjector stopped on stop()")
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG AR.stop: $e") }
     }
 
     private fun createVirtualSurface() {
