@@ -24,6 +24,7 @@ import android.view.SurfaceHolder
 import android.widget.Toast
 import com.crossbowffs.remotepreferences.RemotePreferences
 import com.google.gson.Gson
+import com.wangyiheng.vcamsx.VideoControlReceiver
 import com.wangyiheng.vcamsx.data.models.VideoStatues
 import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.ImagePlayer
@@ -48,9 +49,7 @@ class MainHook : IXposedHookLoadPackage {
     private val hookedDeviceClasses:   MutableSet<String>   = Collections.newSetFromMap(ConcurrentHashMap())
     private val hookedCallbackClasses: MutableSet<String>   = Collections.newSetFromMap(ConcurrentHashMap())
     private val hookedReaderClasses:   MutableSet<String>   = Collections.newSetFromMap(ConcurrentHashMap())
-
-    // Track ImageReader dimensions per surface for IPMAN trick
-    private val readerDimensions: MutableMap<String, Pair<Int,Int>> = ConcurrentHashMap()
+    private val hookedBitmapClasses:   MutableSet<String>   = Collections.newSetFromMap(ConcurrentHashMap())
 
     companion object {
         const val TAG = "vcamsx"
@@ -77,8 +76,6 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var camera_callback_calss:  Class<*>?      = null
         @Volatile @JvmField var data_buffer:  ByteArray      = byteArrayOf()
         @Volatile @JvmField var audioEnabled  = false
-
-        // Last known capture dimensions from ImageReader — used for IPMAN sizing
         @Volatile @JvmField var lastCaptureW  = 1920
         @Volatile @JvmField var lastCaptureH  = 1080
 
@@ -88,15 +85,17 @@ class MainHook : IXposedHookLoadPackage {
             else SurfaceTexture(10)
         }
 
+        /** Injection is active if video OR image is enabled */
+        fun isInjectionActive(status: VideoStatues?): Boolean =
+            status?.isVideoEnable == true || status?.isImageEnabled == true || ImagePlayer.isActive.value
+
         fun readStatusDirect(ctx: Context): VideoStatues? {
             return try {
                 val prefs = RemotePreferences(
                     ctx, "com.wangyiheng.vcamsx.preferences", "main_prefs", true)
                 val json = prefs.getString("videoStatus", null) ?: return null
                 Gson().fromJson(json, VideoStatues::class.java)
-            } catch (e: Throwable) {
-                XposedBridge.log("$TAG readStatusDirect: $e"); null
-            }
+            } catch (e: Throwable) { XposedBridge.log("$TAG readStatus: $e"); null }
         }
 
         fun getContextFromActivityThread(): Context? = try {
@@ -111,20 +110,15 @@ class MainHook : IXposedHookLoadPackage {
         }
 
         /**
-         * IPMAN composite trick:
-         * - Take real captured JPEG as base
-         * - Scale our selected image to fit capture dims WITHOUT stretching
-         * - Center and draw our image ON TOP of real capture
-         * - Result: real capture underneath, our image covering it
+         * IPMAN composite: our image on top of real captured frame.
+         * Scales to fit WITHOUT stretching, centered.
+         * Works for ALL apps because we use actual capture dimensions.
          */
         fun ipmanComposite(captureW: Int, captureH: Int, realJpeg: ByteArray?): ByteArray? {
             val bmp = ImagePlayer.currentBitmapSnapshot() ?: return null
-
-            // Create output canvas at exact capture dimensions
             val output = Bitmap.createBitmap(captureW, captureH, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(output)
-
-            // Layer 1: real capture as background (so dimensions match perfectly)
+            // Layer 1: real capture as base
             if (realJpeg != null && realJpeg.isNotEmpty()) {
                 try {
                     val real = BitmapFactory.decodeByteArray(realJpeg, 0, realJpeg.size)
@@ -135,26 +129,18 @@ class MainHook : IXposedHookLoadPackage {
                         real.recycle()
                     }
                 } catch (_: Exception) { canvas.drawColor(Color.BLACK) }
-            } else {
-                canvas.drawColor(Color.BLACK)
-            }
-
-            // Layer 2: our image on top, scaled to fit WITHOUT stretching, centered
-            val scaleW = captureW.toFloat() / bmp.width
-            val scaleH = captureH.toFloat() / bmp.height
-            val scale  = minOf(scaleW, scaleH)      // fit inside, never stretch
+            } else { canvas.drawColor(Color.BLACK) }
+            // Layer 2: our image on top — shrink to fit, never stretch, center
+            val scale  = minOf(captureW.toFloat() / bmp.width, captureH.toFloat() / bmp.height)
             val dstW   = (bmp.width  * scale).toInt().coerceAtLeast(1)
             val dstH   = (bmp.height * scale).toInt().coerceAtLeast(1)
             val left   = (captureW - dstW) / 2
             val top    = (captureH - dstH) / 2
-
             val scaled = if (dstW == bmp.width && dstH == bmp.height) bmp
                          else Bitmap.createScaledBitmap(bmp, dstW, dstH, true)
-            canvas.drawBitmap(scaled, left.toFloat(), top.toFloat(), Paint().apply {
-                isFilterBitmap = true
-            })
+            canvas.drawBitmap(scaled, left.toFloat(), top.toFloat(),
+                Paint().apply { isFilterBitmap = true })
             if (scaled !== bmp) scaled.recycle()
-
             val out = ByteArrayOutputStream()
             output.compress(Bitmap.CompressFormat.JPEG, 95, out)
             output.recycle()
@@ -167,20 +153,16 @@ class MainHook : IXposedHookLoadPackage {
         val proc = lpparam.processName
         if (proc.endsWith(":push")   || proc.endsWith(":remote") ||
             proc.endsWith(":nfc")    || proc.endsWith(":work")) return
-
         XposedBridge.log("$TAG hook: ${lpparam.packageName} proc=$proc")
         hookAppInit(lpparam)
         hookCamera1(lpparam)
         hookCamera2(lpparam)
         hookImageReader(lpparam)
+        hookBitmapFactory(lpparam)   // Preview Activity hook — replaces captured image in review screen
         hookMediaCodecSurface(lpparam)
         hookMediaRecorder(lpparam)
         hookAudioRecord(lpparam)
     }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // ORIGINAL VIDEO INJECTION — surface swap logic untouched
-    // ══════════════════════════════════════════════════════════════════════════
 
     private fun filterAndSwapSurfaceList(original: List<Surface>): List<Surface> {
         val virt   = c2_virtual_surface ?: return original
@@ -191,8 +173,7 @@ class MainHook : IXposedHookLoadPackage {
                 nonPreviewSurfaces.contains(s) -> result.add(s)
                 !replaced -> {
                     original_preview_Surface = s
-                    result.add(virt)
-                    replaced = true
+                    result.add(virt); replaced = true
                 }
                 else -> result.add(s)
             }
@@ -200,6 +181,10 @@ class MainHook : IXposedHookLoadPackage {
         if (!replaced) result.add(0, virt)
         return result
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // APP INIT
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookAppInit(lpparam: XC_LoadPackage.LoadPackageParam) {
         try {
@@ -220,26 +205,30 @@ class MainHook : IXposedHookLoadPackage {
                             }
                             val status = readStatusDirect(ctx)
                             XposedBridge.log("$TAG appInit proc=${lpparam.processName} " +
-                                "videoEnable=${status?.isVideoEnable} " +
-                                "imageEnable=${status?.isImageEnabled} " +
-                                "volume=${status?.volume}")
+                                "video=${status?.isVideoEnable} image=${status?.isImageEnabled}")
                             if (status?.isVideoEnable == true && status.volume) audioEnabled = true
                         } catch (e: Throwable) { XposedBridge.log("$TAG init: $e") }
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG hookAppInit install: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG hookAppInit: $e") }
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CAMERA 1
+    // Fix: isInjectionActive() instead of isVideoEnable only
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookCamera1(lpparam: XC_LoadPackage.LoadPackageParam) {
         val cl = lpparam.classLoader
+
         try {
             XposedHelpers.findAndHookMethod("android.hardware.Camera", cl,
                 "setPreviewTexture", SurfaceTexture::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         InfoProcesser.initStatus()
-                        if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                        if (!isInjectionActive(InfoProcesser.videoStatus)) return
                         val st = param.args[0] as? SurfaceTexture ?: return
                         if (st == fake_SurfaceTexture) return
                         if (origin_preview_camera != null && origin_preview_camera == param.thisObject) {
@@ -260,8 +249,8 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         InfoProcesser.initStatus()
-                        if (InfoProcesser.videoStatus?.isVideoEnable != true) return
-                        mcamera1  = param.thisObject as? Camera
+                        if (!isInjectionActive(InfoProcesser.videoStatus)) return
+                        mcamera1 = param.thisObject as? Camera
                         oriHolder = param.args[0] as? SurfaceHolder
                     }
                 }
@@ -273,10 +262,9 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         InfoProcesser.initStatus()
-                        if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                        if (!isInjectionActive(InfoProcesser.videoStatus)) return
                         val cam = param.thisObject as? Camera ?: return
                         if (oriHolder != null && cam == mcamera1 && origin_preview_camera == null) {
-                            c1FakeTexture = makeFakeST(c1FakeTexture)
                             try {
                                 origin_preview_camera = cam
                                 fake_SurfaceTexture   = makeFakeST(fake_SurfaceTexture)
@@ -289,8 +277,9 @@ class MainHook : IXposedHookLoadPackage {
                     }
                     override fun afterHookedMethod(param: MethodHookParam) {
                         InfoProcesser.initStatus()
-                        if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                        if (!isInjectionActive(InfoProcesser.videoStatus)) return
                         VideoPlayer.c1_camera_play()
+                        context?.let { showToast(it, "VCamSX active") }
                     }
                 }
             )
@@ -323,18 +312,13 @@ class MainHook : IXposedHookLoadPackage {
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG C1.ACB: $e") }
 
-        // takePicture — IPMAN trick for Camera1 shutter
         try {
             XposedHelpers.findAndHookMethod("android.hardware.Camera", cl, "takePicture",
                 Camera.ShutterCallback::class.java, Camera.PictureCallback::class.java,
                 Camera.PictureCallback::class.java, Camera.PictureCallback::class.java,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val status = InfoProcesser.videoStatus
-                        val imageActive = ImagePlayer.isActive.value
-                        val videoActive = status?.isVideoEnable == true
-                        // Fix: run if EITHER image OR video injection is active
-                        if (!imageActive && !videoActive) return
+                        if (!ImagePlayer.isActive.value) return
                         if (param.args[0] != null) hookYUVCb(param)
                         if (param.args[2] != null) hookJPEGCb(param, 2)
                         if (param.args[3] != null) hookJPEGCb(param, 3)
@@ -343,6 +327,10 @@ class MainHook : IXposedHookLoadPackage {
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG C1.takePicture: $e") }
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CAMERA 2 — Messenger/Facebook fix with camera2PlayOnSurface
+    // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookCamera2(lpparam: XC_LoadPackage.LoadPackageParam) {
         val cl = lpparam.classLoader
@@ -404,22 +392,18 @@ class MainHook : IXposedHookLoadPackage {
             )
         } catch (e: Throwable) { XposedBridge.log("$TAG build: $e") }
 
-        // ── Messenger fix ─────────────────────────────────────────────────────
-        // Messenger uses CameraDeviceImpl.createCaptureSession directly and
-        // sometimes doesn't call addTarget on the builder, so
-        // original_preview_Surface stays null and camera2Play() does nothing.
-        //
-        // Fix: hook CameraDeviceImpl.createCaptureSession directly to:
-        //   1. Swap preview surface in the surface list
-        //   2. Set original_preview_Surface ourselves
-        //   3. Call camera2Play() after session is created via StateCallback
+        // Messenger/Facebook fix
         hookCameraDeviceImpl(cl, lpparam)
     }
 
+    /**
+     * Messenger/Facebook: intercept CameraDeviceImpl directly.
+     * Saves preview surface + calls camera2PlayOnSurface() after session configured.
+     * camera2PlayOnSurface() builds a VideoSurfaceTransformer so ALL controls work.
+     */
     private fun hookCameraDeviceImpl(cl: ClassLoader, lpparam: XC_LoadPackage.LoadPackageParam) {
         val implClass = "android.hardware.camera2.impl.CameraDeviceImpl"
 
-        // List variant — Messenger on older APIs
         try {
             XposedHelpers.findAndHookMethod(implClass, cl,
                 "createCaptureSession",
@@ -428,25 +412,23 @@ class MainHook : IXposedHookLoadPackage {
                     @Suppress("UNCHECKED_CAST")
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         InfoProcesser.initStatus()
-                        if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                        if (!isInjectionActive(InfoProcesser.videoStatus)) return
                         createVirtualSurface()
                         val original = param.args[0] as? List<Surface> ?: return
-                        // Pick the first non-nonPreview surface as preview
-                        val previewSurface = original.firstOrNull { !nonPreviewSurfaces.contains(it) }
-                        if (previewSurface != null) original_preview_Surface = previewSurface
-                        param.args[0] = filterAndSwapSurfaceList(original)
-                        // Wrap StateCallback so we call camera2Play after session created
-                        val origCb = param.args[1] as? CameraCaptureSession.StateCallback
-                        if (origCb != null) {
-                            param.args[1] = wrapSessionCallback(origCb)
+                        val previewSurf = original.firstOrNull { !nonPreviewSurfaces.contains(it) }
+                        if (previewSurf != null) {
+                            original_preview_Surface = previewSurf
+                            c2_reader_Surfcae        = previewSurf
                         }
-                        XposedBridge.log("$TAG impl.createCS(List) preview=$previewSurface")
+                        param.args[0] = filterAndSwapSurfaceList(original)
+                        val origCb = param.args[1] as? CameraCaptureSession.StateCallback
+                        param.args[1] = makeSessionCb(origCb, previewSurf)
+                        XposedBridge.log("$TAG impl.CS(List) preview=$previewSurf pkg=${lpparam.packageName}")
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG impl.createCS(List): $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG impl.CS(List): $e") }
 
-        // SessionConfiguration variant — Messenger on API 28+
         if (Build.VERSION.SDK_INT >= 28) {
             try {
                 XposedHelpers.findAndHookMethod(implClass, cl,
@@ -454,12 +436,13 @@ class MainHook : IXposedHookLoadPackage {
                     object : XC_MethodHook() {
                         override fun beforeHookedMethod(param: MethodHookParam) {
                             InfoProcesser.initStatus()
-                            if (InfoProcesser.videoStatus?.isVideoEnable != true) return
+                            if (!isInjectionActive(InfoProcesser.videoStatus)) return
                             createVirtualSurface()
                             val orig    = param.args[0] as? SessionConfiguration ?: return
                             val virt    = c2_virtual_surface ?: return
                             val outputs = try { orig.outputConfigurations } catch (_: Throwable) { null }
                             val newOuts = ArrayList<OutputConfiguration>()
+                            var previewSurf: Surface? = null
                             var replaced = false
                             if (outputs != null) {
                                 for (oc in outputs) {
@@ -467,64 +450,52 @@ class MainHook : IXposedHookLoadPackage {
                                     when {
                                         s != null && nonPreviewSurfaces.contains(s) -> newOuts.add(oc)
                                         !replaced -> {
-                                            if (s != null) original_preview_Surface = s
-                                            newOuts.add(OutputConfiguration(virt))
-                                            replaced = true
+                                            if (s != null) {
+                                                previewSurf              = s
+                                                original_preview_Surface = s
+                                                c2_reader_Surfcae        = s
+                                            }
+                                            newOuts.add(OutputConfiguration(virt)); replaced = true
                                         }
                                         else -> newOuts.add(oc)
                                     }
                                 }
                             }
-                            if (!replaced) {
-                                newOuts.add(0, OutputConfiguration(virt))
-                            }
-                            // Wrap the stateCallback so we trigger camera2Play after configured
-                            val wrappedCb = wrapSessionStateCallbackForSC(orig.stateCallback)
-                            val fake = SessionConfiguration(
-                                orig.sessionType, newOuts, orig.executor, wrappedCb)
+                            if (!replaced) newOuts.add(0, OutputConfiguration(virt))
+                            val pSurf   = previewSurf
+                            val wrapped = makeSessionCb(orig.stateCallback, pSurf)
+                            val fake    = SessionConfiguration(orig.sessionType, newOuts, orig.executor, wrapped)
                             fake_sessionConfiguration = fake
                             param.args[0] = fake
-                            XposedBridge.log("$TAG impl.createCS(SC) outputs=${outputs?.size}→${newOuts.size}")
+                            XposedBridge.log("$TAG impl.CS(SC) preview=$pSurf pkg=${lpparam.packageName}")
                         }
                     }
                 )
-            } catch (e: Throwable) { XposedBridge.log("$TAG impl.createCS(SC): $e") }
+            } catch (e: Throwable) { XposedBridge.log("$TAG impl.CS(SC): $e") }
         }
     }
 
     /**
-     * Wrap CameraCaptureSession.StateCallback so that after onConfigured()
-     * we call VideoPlayer.camera2Play(). This is what triggers actual playback
-     * in Messenger — without it the surface is swapped but nothing plays.
+     * Wrap StateCallback.onConfigured to trigger playback after Messenger's session is ready.
+     * Uses camera2PlayOnSurface() which sets up transformer so ALL controls work.
      */
-    private fun wrapSessionCallback(
-        original: CameraCaptureSession.StateCallback
-    ): CameraCaptureSession.StateCallback {
-        return object : CameraCaptureSession.StateCallback() {
-            override fun onConfigured(session: CameraCaptureSession) {
-                original.onConfigured(session)
-                try { VideoPlayer.camera2Play() } catch (e: Throwable) {
-                    XposedBridge.log("$TAG wrapCb.onConfigured camera2Play: $e")
-                }
-            }
-            override fun onConfigureFailed(session: CameraCaptureSession) {
-                original.onConfigureFailed(session)
-            }
-            override fun onClosed(session: CameraCaptureSession) {
-                try { original.onClosed(session) } catch (_: Throwable) {}
-            }
-        }
-    }
-
-    private fun wrapSessionStateCallbackForSC(
-        original: CameraCaptureSession.StateCallback?
+    private fun makeSessionCb(
+        original: CameraCaptureSession.StateCallback?,
+        previewSurface: Surface? = null
     ): CameraCaptureSession.StateCallback {
         return object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
                 try { original?.onConfigured(session) } catch (_: Throwable) {}
-                try { VideoPlayer.camera2Play() } catch (e: Throwable) {
-                    XposedBridge.log("$TAG wrapSC.onConfigured camera2Play: $e")
-                }
+                try {
+                    val s = previewSurface ?: c2_reader_Surfcae ?: original_preview_Surface
+                    if (s != null && s.isValid) {
+                        VideoPlayer.camera2PlayOnSurface(s)
+                        XposedBridge.log("$TAG sessionCb.onConfigured camera2PlayOnSurface($s)")
+                    } else {
+                        // Standard path fallback
+                        VideoPlayer.camera2Play()
+                    }
+                } catch (e: Throwable) { XposedBridge.log("$TAG sessionCb.onConfigured: $e") }
             }
             override fun onConfigureFailed(session: CameraCaptureSession) {
                 try { original?.onConfigureFailed(session) } catch (_: Throwable) {}
@@ -592,8 +563,7 @@ class MainHook : IXposedHookLoadPackage {
                                     }
                                 }
                             } else { newOuts.add(OutputConfiguration(virt)) }
-                            val fake = SessionConfiguration(
-                                orig.sessionType, newOuts, orig.executor, orig.stateCallback)
+                            val fake = SessionConfiguration(orig.sessionType, newOuts, orig.executor, orig.stateCallback)
                             fake_sessionConfiguration = fake; param.args[0] = fake
                         }
                     }
@@ -617,7 +587,7 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // IMAGE READER — IPMAN trick with auto aspect ratio correction
+    // IMAGE READER — IPMAN trick with correct dimensions for every app
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -635,20 +605,11 @@ class MainHook : IXposedHookLoadPackage {
                             val surf = reader.javaClass.getMethod("getSurface")
                                 .invoke(reader) as? Surface ?: return
                             nonPreviewSurfaces.add(surf)
-                            // Store dims for this reader surface
-                            readerDimensions[surf.toString()] = Pair(w, h)
-                            // Update last known capture dimensions
-                            // Only update if this looks like a still capture (>= 720p)
-                            if (w >= 720 || h >= 720) {
-                                lastCaptureW = w; lastCaptureH = h
-                            }
+                            if (w >= 480 || h >= 480) { lastCaptureW = w; lastCaptureH = h }
                             XposedBridge.log("$TAG IR fmt=$fmt ${w}x${h}")
                             VideoPlayer.addImageWriterTarget(surf, fmt, w, h)
                             hookAcquireOnReaderClass(reader.javaClass, w, h)
-                            // IPMAN toast — show capture dimensions like his app
-                            context?.let { ctx ->
-                                showToast(ctx, "VCamSX: Capture size ${w}×${h}")
-                            }
+                            context?.let { showToast(it, "VCamSX: Capture ${w}×${h}") }
                         } catch (e: Throwable) { XposedBridge.log("$TAG IR.newInstance: $e") }
                     }
                 }
@@ -667,13 +628,8 @@ class MainHook : IXposedHookLoadPackage {
         } catch (_: Throwable) {}
     }
 
-    private fun hookAcquireOnReaderClass(cls: Class<*>, captureW: Int = 0, captureH: Int = 0) {
-        // Key by class + dims so we hook once per unique (class, resolution)
-        val key = "${cls.name}_${captureW}x${captureH}"
-        if (!hookedReaderClasses.add(key)) return
-
-        val cW = captureW; val cH = captureH
-
+    private fun hookAcquireOnReaderClass(cls: Class<*>, cW: Int = 0, cH: Int = 0) {
+        if (!hookedReaderClasses.add("${cls.name}_${cW}x${cH}")) return
         val swapHook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
                 if (!ImagePlayer.isActive.value) return
@@ -682,38 +638,136 @@ class MainHook : IXposedHookLoadPackage {
                     if (image.format != android.graphics.ImageFormat.JPEG) return
                     val plane = image.planes.getOrNull(0) ?: return
                     val buf   = plane.buffer
-
-                    // Use actual image dimensions, fall back to registered dims
                     val actualW = if (image.width  > 0) image.width  else if (cW > 0) cW else lastCaptureW
                     val actualH = if (image.height > 0) image.height else if (cH > 0) cH else lastCaptureH
-
-                    // Read real capture JPEG for composite base
                     val realBytes: ByteArray? = if (buf.remaining() > 0) {
-                        val arr = ByteArray(buf.remaining())
-                        buf.get(arr); buf.rewind(); arr
+                        val arr = ByteArray(buf.remaining()); buf.get(arr); buf.rewind(); arr
                     } else null
-
-                    // IPMAN composite: our image centered on top of real capture
                     val composite = ipmanComposite(actualW, actualH, realBytes) ?: return
-
-                    // IPMAN-style toast with corrected dimensions
                     val bmp = ImagePlayer.currentBitmapSnapshot()
-                    context?.let { ctx ->
-                        showToast(ctx, "VCamSX: ${bmp?.width}×${bmp?.height} → ${actualW}×${actualH}")
+                    context?.let {
+                        showToast(it, "VCamSX: ${bmp?.width}×${bmp?.height} → ${actualW}×${actualH}")
                     }
-
                     buf.clear()
                     buf.put(composite, 0, minOf(composite.size, buf.capacity()))
                     buf.rewind()
-                    XposedBridge.log("$TAG IPMAN: img=${bmp?.width}x${bmp?.height} " +
-                        "cap=${actualW}x${actualH} jpeg=${composite.size}b")
+                    XposedBridge.log("$TAG IPMAN: ${actualW}x${actualH} jpeg=${composite.size}b")
                 } catch (e: Throwable) { XposedBridge.log("$TAG acquireImage: $e") }
             }
         }
         try { XposedHelpers.findAndHookMethod(cls, "acquireLatestImage", swapHook) }
             catch (e: Throwable) { XposedBridge.log("$TAG acquireLatest: $e") }
-        try { XposedHelpers.findAndHookMethod(cls, "acquireNextImage", swapHook) }
+        try { XposedHelpers.findAndHookMethod(cls, "acquireNextImage",   swapHook) }
             catch (e: Throwable) { XposedBridge.log("$TAG acquireNext: $e") }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BITMAP FACTORY HOOK — Preview Activity fix
+    //
+    // After shutter: Telegram/WhatsApp/Discord load the captured JPEG from disk
+    // via BitmapFactory.decodeFile() or decodeByteArray() to display in their
+    // Preview Activity. We intercept those calls and replace the returned Bitmap
+    // with our IPMAN composite. This is the ONLY way to replace the image in the
+    // review/preview screen that appears after capture.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private fun hookBitmapFactory(lpparam: XC_LoadPackage.LoadPackageParam) {
+        val cl = lpparam.classLoader
+
+        // decodeFile — most apps load captured photo from file path
+        try {
+            XposedHelpers.findAndHookMethod("android.graphics.BitmapFactory", cl,
+                "decodeFile", String::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val original = param.result as? Bitmap ?: return
+                        val composite = compositeBitmap(original) ?: return
+                        original.recycle()
+                        param.result = composite
+                        XposedBridge.log("$TAG BF.decodeFile replaced ${original.width}x${original.height}")
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG BF.decodeFile: $e") }
+
+        // decodeFile with Options
+        try {
+            XposedHelpers.findAndHookMethod("android.graphics.BitmapFactory", cl,
+                "decodeFile", String::class.java, BitmapFactory.Options::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val original = param.result as? Bitmap ?: return
+                        val composite = compositeBitmap(original) ?: return
+                        original.recycle()
+                        param.result = composite
+                        XposedBridge.log("$TAG BF.decodeFile(opts) replaced")
+                    }
+                }
+            )
+        } catch (_: Throwable) {}
+
+        // decodeByteArray — some apps load captured photo from memory
+        try {
+            XposedHelpers.findAndHookMethod("android.graphics.BitmapFactory", cl,
+                "decodeByteArray", ByteArray::class.java, Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val original = param.result as? Bitmap ?: return
+                        // Only replace if this looks like a photo (not a tiny icon/thumbnail)
+                        if (original.width < 400 || original.height < 400) return
+                        val composite = compositeBitmap(original) ?: return
+                        original.recycle()
+                        param.result = composite
+                        XposedBridge.log("$TAG BF.decodeByteArray replaced ${original.width}x${original.height}")
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG BF.decodeByteArray: $e") }
+
+        // decodeStream — Firefox/browser and some other apps
+        try {
+            XposedHelpers.findAndHookMethod("android.graphics.BitmapFactory", cl,
+                "decodeStream", java.io.InputStream::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        val original = param.result as? Bitmap ?: return
+                        if (original.width < 400 || original.height < 400) return
+                        val composite = compositeBitmap(original) ?: return
+                        original.recycle()
+                        param.result = composite
+                    }
+                }
+            )
+        } catch (_: Throwable) {}
+    }
+
+    /**
+     * Composite our image onto the given bitmap at its exact dimensions.
+     * This is what replaces the real camera image in the Preview Activity.
+     */
+    private fun compositeBitmap(original: Bitmap): Bitmap? {
+        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return null
+        val output = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        // Real capture underneath
+        canvas.drawBitmap(original, 0f, 0f, null)
+        // Our image on top — shrink to fit, center, no stretch
+        val scale  = minOf(original.width.toFloat() / bmp.width, original.height.toFloat() / bmp.height)
+        val dstW   = (bmp.width  * scale).toInt().coerceAtLeast(1)
+        val dstH   = (bmp.height * scale).toInt().coerceAtLeast(1)
+        val left   = (original.width  - dstW) / 2
+        val top    = (original.height - dstH) / 2
+        val scaled = if (dstW == bmp.width && dstH == bmp.height) bmp
+                     else Bitmap.createScaledBitmap(bmp, dstW, dstH, true)
+        canvas.drawBitmap(scaled, left.toFloat(), top.toFloat(),
+            Paint().apply { isFilterBitmap = true })
+        if (scaled !== bmp) scaled.recycle()
+        return output
     }
 
     private fun hookMediaCodecSurface(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -755,7 +809,7 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // AUDIO INJECTION — unchanged
+    // AUDIO INJECTION
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun hookAudioRecord(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -767,13 +821,11 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val ctx    = getContextFromActivityThread()
-                        val status = if (ctx != null) readStatusDirect(ctx)
-                                     else InfoProcesser.videoStatus
+                        val status = if (ctx != null) readStatusDirect(ctx) else InfoProcesser.videoStatus
                         XposedBridge.log("$TAG AR.startRecording proc=$proc " +
-                            "videoEnable=${status?.isVideoEnable} volume=${status?.volume}")
+                            "video=${status?.isVideoEnable} volume=${status?.volume}")
                         if (status?.isVideoEnable == true && status.volume) {
                             audioEnabled = true; AudioInjector.enabled = true; AudioInjector.start()
-                            XposedBridge.log("$TAG AudioInjector STARTED proc=$proc")
                         }
                     }
                 }
@@ -860,16 +912,15 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ORIGINAL HELPERS — UNTOUCHED
+    // HELPERS — UNTOUCHED
     // ══════════════════════════════════════════════════════════════════════════
 
     private fun createVirtualSurface() {
         if (!needRecreate && c2_virtual_surface?.isValid == true) return
         c2VirtualSurfaceTexture?.release(); c2_virtual_surface?.release()
-        c2VirtualSurfaceTexture = SurfaceTexture(10)
-            .also { it.setDefaultBufferSize(720, 1280) }
-        c2_virtual_surface = Surface(c2VirtualSurfaceTexture!!)
-        needRecreate       = false
+        c2VirtualSurfaceTexture = SurfaceTexture(10).also { it.setDefaultBufferSize(720, 1280) }
+        c2_virtual_surface      = Surface(c2VirtualSurfaceTexture!!)
+        needRecreate            = false
         XposedBridge.log("$TAG virtual surface created")
     }
 
@@ -905,23 +956,21 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     private fun hookJPEGCb(param: XC_MethodHook.MethodHookParam, idx: Int) {
+        val cbObj = param.args[idx] ?: return
         try {
-            XposedHelpers.findAndHookMethod(param.args[idx].javaClass, "onPictureTaken",
+            XposedHelpers.findAndHookMethod(cbObj.javaClass, "onPictureTaken",
                 ByteArray::class.java, Camera::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(p: MethodHookParam) {
                         if (!ImagePlayer.isActive.value) return
-                        val realJpeg = p.args[0] as? ByteArray
-                        // Get picture size from camera parameters
-                        val cam  = p.args[1] as? Camera
-                        val size = try { cam?.parameters?.pictureSize } catch (_: Exception) { null }
-                        val capW = size?.width  ?: lastCaptureW
-                        val capH = size?.height ?: lastCaptureH
+                        val realJpeg  = p.args[0] as? ByteArray
+                        val cam       = p.args[1] as? Camera
+                        val sz        = try { cam?.parameters?.pictureSize } catch (_: Exception) { null }
+                        val capW      = sz?.width  ?: lastCaptureW
+                        val capH      = sz?.height ?: lastCaptureH
                         val composite = ipmanComposite(capW, capH, realJpeg) ?: return
                         p.args[0] = composite
-                        context?.let { ctx ->
-                            showToast(ctx, "VCamSX: Snapshot ${capW}×${capH}")
-                        }
+                        context?.let { showToast(it, "VCamSX: Snap ${capW}×${capH}") }
                         XposedBridge.log("$TAG JPEG cb IPMAN ${capW}x${capH}")
                     }
                 }
@@ -930,17 +979,18 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     private fun hookYUVCb(param: XC_MethodHook.MethodHookParam) {
+        val cbObj = param.args[0] ?: return
         try {
-            XposedHelpers.findAndHookMethod(param.args[0].javaClass, "onPictureTaken",
+            XposedHelpers.findAndHookMethod(cbObj.javaClass, "onPictureTaken",
                 ByteArray::class.java, Camera::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(p: MethodHookParam) {
                         if (!ImagePlayer.isActive.value) return
-                        val realJpeg = p.args[0] as? ByteArray
-                        val cam  = p.args[1] as? Camera
-                        val size = try { cam?.parameters?.pictureSize } catch (_: Exception) { null }
-                        val capW = size?.width  ?: lastCaptureW
-                        val capH = size?.height ?: lastCaptureH
+                        val realJpeg  = p.args[0] as? ByteArray
+                        val cam       = p.args[1] as? Camera
+                        val sz        = try { cam?.parameters?.pictureSize } catch (_: Exception) { null }
+                        val capW      = sz?.width  ?: lastCaptureW
+                        val capH      = sz?.height ?: lastCaptureH
                         val composite = ipmanComposite(capW, capH, realJpeg) ?: return
                         p.args[0] = composite
                     }
