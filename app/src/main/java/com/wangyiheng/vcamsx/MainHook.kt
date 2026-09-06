@@ -81,12 +81,14 @@ class MainHook : IXposedHookLoadPackage {
             else SurfaceTexture(10)
         }
 
-        fun readStatusDirect(ctx: Context): VideoStatues? = try {
-            val prefs = RemotePreferences(ctx,
-                "com.wangyiheng.vcamsx.preferences", "main_prefs", true)
-            val json = prefs.getString("videoStatus", null) ?: return null
-            Gson().fromJson(json, VideoStatues::class.java)
-        } catch (e: Throwable) { XposedBridge.log("$TAG readStatusDirect: $e"); null }
+        fun readStatusDirect(ctx: Context): VideoStatues? {
+            return try {
+                val prefs = RemotePreferences(ctx,
+                    "com.wangyiheng.vcamsx.preferences", "main_prefs", true)
+                val json = prefs.getString("videoStatus", null) ?: return null
+                Gson().fromJson(json, VideoStatues::class.java)
+            } catch (e: Throwable) { XposedBridge.log("$TAG readStatusDirect: $e"); null }
+        }
 
         fun getContextFromActivityThread(): Context? = try {
             val at = Class.forName("android.app.ActivityThread")
