@@ -114,12 +114,21 @@ object VideoPlayer {
     }
 
     fun camera2Play() {
+        val imageActive = ImagePlayer.isActive.value
         MainHook.original_preview_Surface?.let { s ->
             if (s.isValid) {
-                if (ImagePlayer.isActive.value) {
+                if (imageActive) {
+                    // Image mode: render to virtual surface (which is swapped in for preview)
                     val virt = MainHook.c2_virtual_surface
-                    if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
-                    else ImagePlayer.attachSurface(s)
+                    if (virt != null && virt.isValid) {
+                        ImagePlayer.attachSurface(virt)
+                        Log.d(TAG, "camera2Play: image attached to virtual surface")
+                    } else {
+                        ImagePlayer.attachSurface(s)
+                    }
+                    // Also start MediaPlayer on virt so image-as-MP4 plays
+                    val playOn = MainHook.c2_virtual_surface?.takeIf { it.isValid } ?: s
+                    handleMediaPlayer(playOn)
                 } else {
                     handleMediaPlayer(s)
                 }
@@ -148,18 +157,41 @@ object VideoPlayer {
     }
 
     fun c1_camera_play() {
-        if (ImagePlayer.isActive.value) {
-            MainHook.original_c1_preview_SurfaceTexture?.let {
-                try { val s = Surface(it); if (s.isValid) ImagePlayer.attachC1Surface(s) } catch (_: Exception) {}
+        val status = InfoProcesser.videoStatus
+        val imageActive = ImagePlayer.isActive.value
+        val videoActive = status?.isVideoEnable == true
+        val imageEnabled = status?.isImageEnabled == true
+
+        if (!imageActive && !videoActive && !imageEnabled) return
+
+        if (imageActive) {
+            // Image mode: render image onto the preview surface using GL/SurfaceTexture
+            MainHook.original_c1_preview_SurfaceTexture?.let { st ->
+                try {
+                    val s = Surface(st)
+                    if (s.isValid) {
+                        ImagePlayer.attachC1Surface(s)
+                        Log.d(TAG, "c1_camera_play: image attached to C1 SurfaceTexture")
+                    }
+                } catch (_: Exception) {}
             }
-            MainHook.oriHolder?.surface?.let {
-                try { if (it.isValid) ImagePlayer.attachC1Surface(it) } catch (_: Exception) {}
+            MainHook.oriHolder?.surface?.let { s ->
+                try {
+                    if (s.isValid) {
+                        ImagePlayer.attachC1Surface(s)
+                        Log.d(TAG, "c1_camera_play: image attached to C1 SurfaceHolder")
+                    }
+                } catch (_: Exception) {}
+            }
+            // Also init MediaPlayer so controls work (image encoded as MP4)
+            val st = MainHook.original_c1_preview_SurfaceTexture
+            if (st != null) {
+                try { val s = Surface(st); if (s.isValid) handleMediaPlayer(s) } catch (_: Exception) {}
             }
             return
         }
-        val status = InfoProcesser.videoStatus ?: return
-        // Fix: allow image-only mode to play through the video pipeline
-        if (!status.isVideoEnable && !status.isImageEnabled && !ImagePlayer.isActive.value) return
+
+        // Video mode
         val st = MainHook.original_c1_preview_SurfaceTexture
         if (st != null) {
             try { val s = Surface(st); if (s.isValid) handleMediaPlayer(s) } catch (_: Exception) {}
