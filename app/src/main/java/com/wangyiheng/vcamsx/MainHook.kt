@@ -62,6 +62,8 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var camera_onPreviewFrame:  Camera?        = null
         @JvmField var camera_callback_calss:  Class<*>?      = null
         @Volatile @JvmField var data_buffer: ByteArray = byteArrayOf()
+        @Volatile @JvmField var lastCaptureW = 1920
+        @Volatile @JvmField var lastCaptureH = 1080
 
         fun showToast(ctx: Context, msg: String) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
