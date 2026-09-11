@@ -26,7 +26,6 @@ object VideoPlayer {
     private val imageWriters = ConcurrentHashMap<android.media.ImageWriter, Triple<Int,Int,Int>>()
     @Volatile private var writerThread: Thread? = null
 
-    // ── Image writer — uses actual registered dimensions, not hardcoded 720x1280
     fun addImageWriterTarget(surface: Surface, format: Int, w: Int, h: Int) {
         if (Build.VERSION.SDK_INT < 23) return
         val injectable = setOf(35, 17, 16, 842094169)
@@ -35,7 +34,7 @@ object VideoPlayer {
             val writer = android.media.ImageWriter.newInstance(surface, 3)
             imageWriters[writer] = Triple(format, w, h)
             startWriterLoop()
-            Log.d(TAG, "IW registered fmt=$format ${w}x${h}")
+            Log.d(TAG, "IW registered fmt=$format ${w}x${h} imageActive=${ImagePlayer.isActive.value}")
         } catch (e: Exception) { Log.e(TAG, "addIW: ${e.message}") }
     }
 
@@ -43,33 +42,25 @@ object VideoPlayer {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                if (ImagePlayer.isActive.value) {
-                    val bmp = ImagePlayer.currentBitmapSnapshot()
-                    if (bmp != null) {
-                        imageWriters.forEach { (writer, info) ->
-                            val (_, w, h) = info
-                            try {
-                                // Use actual registered dimensions — fixes TikTok/all-apps distortion
-                                val frame = bitmapToNv21(bmp, w, h)
-                                if (frame.size > 1) {
-                                    val img = writer.dequeueInputImage() ?: return@forEach
-                                    writeNV21(img, frame, w, h)
-                                    writer.queueInputImage(img)
-                                }
-                            } catch (_: Exception) {}
-                        }
-                    }
-                } else {
-                    val frame = VideoToFrames.data_buffer
-                    if (frame.size > 1) {
-                        imageWriters.forEach { (writer, info) ->
-                            val (_, w, h) = info
-                            try {
+                // Image mode: generate NV21 from bitmap instead of video decoder
+                if (imageWriters.isNotEmpty()) {
+                    imageWriters.forEach { (writer, info) ->
+                        val (_, w, h) = info
+                        try {
+                            // FIX: use actual w,h per writer — NOT hardcoded 720x1280
+                            val frame = if (ImagePlayer.isActive.value) {
+                                ImagePlayer.currentBitmapSnapshot()?.let { bmp ->
+                                    bitmapToNv21Scaled(bmp, w, h)
+                                } ?: VideoToFrames.data_buffer
+                            } else {
+                                VideoToFrames.data_buffer
+                            }
+                            if (frame.size > 1) {
                                 val img = writer.dequeueInputImage() ?: return@forEach
                                 writeNV21(img, frame, w, h)
                                 writer.queueInputImage(img)
-                            } catch (_: Exception) {}
-                        }
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
                 try { Thread.sleep(33) } catch (_: InterruptedException) { return@Thread }
@@ -114,21 +105,18 @@ object VideoPlayer {
     }
 
     fun camera2Play() {
-        val imageActive = ImagePlayer.isActive.value
         MainHook.original_preview_Surface?.let { s ->
             if (s.isValid) {
-                if (imageActive) {
-                    // Image mode: render to virtual surface (which is swapped in for preview)
+                val imageActive = ImagePlayer.isActive.value
+                val imageOn     = InfoProcesser.videoStatus?.isImageEnabled == true
+                if (imageActive || imageOn) {
+                    // Attach GL renderer to virtual surface (which is swapped in for preview)
                     val virt = MainHook.c2_virtual_surface
-                    if (virt != null && virt.isValid) {
-                        ImagePlayer.attachSurface(virt)
-                        Log.d(TAG, "camera2Play: image attached to virtual surface")
-                    } else {
-                        ImagePlayer.attachSurface(s)
-                    }
-                    // Also start MediaPlayer on virt so image-as-MP4 plays
-                    val playOn = MainHook.c2_virtual_surface?.takeIf { it.isValid } ?: s
-                    handleMediaPlayer(playOn)
+                    val renderTarget = virt?.takeIf { it.isValid } ?: s
+                    ImagePlayer.attachSurface(renderTarget)
+                    // Also init MediaPlayer so MP4 (encoded from image) plays
+                    if (!isInitializing && mediaPlayer == null)
+                        handleMediaPlayer(renderTarget)
                 } else {
                     handleMediaPlayer(s)
                 }
@@ -137,61 +125,34 @@ object VideoPlayer {
         MainHook.c2_reader_Surfcae?.let { s -> c2_reader_play(s) }
     }
 
-    /**
-     * Messenger/Facebook fix: called when we have a preview surface from the
-     * session surface list but addTarget() was never called.
-     * Initialises MediaPlayer with transformer (so controls work) on the given surface.
-     */
-    fun camera2PlayOnSurface(surface: Surface) {
-        if (!surface.isValid) return
-        MainHook.original_preview_Surface = surface
-        if (ImagePlayer.isActive.value) {
-            val virt = MainHook.c2_virtual_surface
-            if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
-            else ImagePlayer.attachSurface(surface)
-        } else {
-            // Build transformer so Rotate/Flip/Zoom work on Messenger
-            handleMediaPlayer(surface)
-        }
-        MainHook.c2_reader_Surfcae?.let { s -> c2_reader_play(s) }
-    }
-
     fun c1_camera_play() {
-        val status = InfoProcesser.videoStatus
+        val status      = InfoProcesser.videoStatus
         val imageActive = ImagePlayer.isActive.value
-        val videoActive = status?.isVideoEnable == true
-        val imageEnabled = status?.isImageEnabled == true
+        val imageOn     = status?.isImageEnabled == true
+        val videoOn     = status?.isVideoEnable  == true
 
-        if (!imageActive && !videoActive && !imageEnabled) return
+        if (!imageActive && !imageOn && !videoOn) return
 
-        if (imageActive) {
-            // Image mode: render image onto the preview surface using GL/SurfaceTexture
-            MainHook.original_c1_preview_SurfaceTexture?.let { st ->
-                try {
-                    val s = Surface(st)
-                    if (s.isValid) {
-                        ImagePlayer.attachC1Surface(s)
-                        Log.d(TAG, "c1_camera_play: image attached to C1 SurfaceTexture")
-                    }
-                } catch (_: Exception) {}
+        if (imageActive || imageOn) {
+            // Image mode: attach GL renderer to the preview surface
+            MainHook.original_c1_preview_SurfaceTexture?.let {
+                try { val s = Surface(it); if (s.isValid) ImagePlayer.attachC1Surface(s) } catch (_: Exception) {}
             }
-            MainHook.oriHolder?.surface?.let { s ->
-                try {
-                    if (s.isValid) {
-                        ImagePlayer.attachC1Surface(s)
-                        Log.d(TAG, "c1_camera_play: image attached to C1 SurfaceHolder")
-                    }
-                } catch (_: Exception) {}
+            MainHook.oriHolder?.surface?.let {
+                try { if (it.isValid) ImagePlayer.attachC1Surface(it) } catch (_: Exception) {}
             }
-            // Also init MediaPlayer so controls work (image encoded as MP4)
+            // Also init MediaPlayer on the same surface so MP4 plays
+            // (image was encoded as MP4 in bitmapToMp4Loop)
             val st = MainHook.original_c1_preview_SurfaceTexture
             if (st != null) {
-                try { val s = Surface(st); if (s.isValid) handleMediaPlayer(s) } catch (_: Exception) {}
+                try { val s = Surface(st); if (s.isValid && !isInitializing && mediaPlayer == null) initMediaPlayer(s) } catch (_: Exception) {}
             }
+            MainHook.c2_reader_Surfcae?.let { c2_reader_play(it) }
             return
         }
-
-        // Video mode
+        // video-only path below
+        val statusV = status ?: return
+        if (statusV.isVideoEnable != true) return
         val st = MainHook.original_c1_preview_SurfaceTexture
         if (st != null) {
             try { val s = Surface(st); if (s.isValid) handleMediaPlayer(s) } catch (_: Exception) {}
@@ -212,9 +173,11 @@ object VideoPlayer {
     fun c2_reader_play(surface: Surface) {
         if (surface == copyReaderSurface) return
         copyReaderSurface = surface
+        // If image injection is active, NV21 is already in data_buffer.
+        // Just ensure the writer loop is running — it will push frames automatically.
         if (ImagePlayer.isActive.value) {
             startWriterLoop()
-            Log.d(TAG, "c2_reader_play: image mode, writer loop ensured")
+            Log.d(TAG, "c2_reader_play: image mode active, writer loop ensured")
             return
         }
         c2_hw_decode_obj?.stopDecode()
@@ -263,9 +226,11 @@ object VideoPlayer {
         val ctx    = MainHook.context ?: run { isInitializing = false; return }
         val status = InfoProcesser.videoStatus
         val volume = if (status?.volume == true) 1f else 0f
+
         val tx        = buildTransformer(surface)
         val renderSrf = tx?.inputSurface ?: surface
         activeTransformer = tx
+
         try {
             mediaPlayer = MediaPlayer().apply {
                 isLooping = true; setSurface(renderSrf); setVolume(volume, volume)
@@ -412,9 +377,31 @@ object VideoPlayer {
         }
     }
 
-    // ── bitmapToNv21 — now uses actual w/h, NOT hardcoded 720x1280
-    // This fixes TikTok and all other apps where dimensions differ
-    fun bitmapToNv21(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray {
+    /**
+     * Scale bitmap to fit outW x outH WITHOUT stretching, centered on black.
+     * This is the aspect-ratio-correct version used by the writer loop.
+     */
+    private fun bitmapToNv21Scaled(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray {
+        // Scale to fit without stretching
+        val scale = minOf(outW.toFloat() / src.width, outH.toFloat() / src.height)
+        val dstW  = (src.width  * scale).toInt().coerceAtLeast(1)
+        val dstH  = (src.height * scale).toInt().coerceAtLeast(1)
+        val left  = (outW - dstW) / 2
+        val top   = (outH - dstH) / 2
+
+        val canvas_bmp = android.graphics.Bitmap.createBitmap(outW, outH, android.graphics.Bitmap.Config.ARGB_8888)
+        val c          = android.graphics.Canvas(canvas_bmp)
+        c.drawColor(android.graphics.Color.BLACK)
+        val scaled_src = if (dstW == src.width && dstH == src.height) src
+                         else android.graphics.Bitmap.createScaledBitmap(src, dstW, dstH, true)
+        c.drawBitmap(scaled_src, left.toFloat(), top.toFloat(), null)
+        if (scaled_src !== src) scaled_src.recycle()
+        val result = bitmapToNv21(canvas_bmp, outW, outH)
+        canvas_bmp.recycle()
+        return result
+    }
+
+    private fun bitmapToNv21(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray {
         val scaled = if (src.width == outW && src.height == outH) src
                      else android.graphics.Bitmap.createScaledBitmap(src, outW, outH, true)
         val argb  = IntArray(outW * outH)
