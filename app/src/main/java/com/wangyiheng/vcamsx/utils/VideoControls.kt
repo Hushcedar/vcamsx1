@@ -2,18 +2,15 @@ package com.wangyiheng.vcamsx.utils
 
 import androidx.compose.runtime.mutableStateOf
 
-/**
- * Shared mutable state for all video transform controls.
- *
- * rotation default = 180 — fixes the "upside-down on first open" bug.
- * Camera sensor feed is expected head-up; our injected video arrives
- * inverted relative to that convention, so 180° pre-correction is the
- * right baseline. User can still adjust via the floating controls.
- */
 object VideoControls {
-    val isPaused        = mutableStateOf(false)
-    val isImageEnabled  = mutableStateOf(false)
-    val rotation  = mutableStateOf(0)   // ← was 0, caused upside-down default
-    val isFlipped = mutableStateOf(false)
-    val scale     = mutableStateOf(1.0f)
+    val isPaused       = mutableStateOf(false)
+    val isImageEnabled = mutableStateOf(false)
+    val rotation       = mutableStateOf(0)
+    val isFlipped      = mutableStateOf(false)
+    val scale          = mutableStateOf(1.0f)
+
+    // Speed cycles: 0.5 → 1 → 1.5 → 2 → 3 → back to 0.5
+    val speedSteps     = listOf(0.5f, 1.0f, 1.5f, 2.0f, 3.0f)
+    val speedIndex     = mutableStateOf(1)   // default = 1× (index 1)
+    val speed get()    = speedSteps[speedIndex.value]
 }

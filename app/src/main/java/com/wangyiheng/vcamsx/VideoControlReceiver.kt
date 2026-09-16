@@ -11,7 +11,6 @@ import com.wangyiheng.vcamsx.utils.VideoPlayer
 class VideoControlReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         when (intent?.action) {
-            // ── Video actions ─────────────────────────────────────────────────
             ACTION_PAUSE    -> VideoPlayer.togglePause()
             ACTION_RELOAD   -> VideoPlayer.reload()
             ACTION_ROTATE   -> {
@@ -36,10 +35,9 @@ class VideoControlReceiver : BroadcastReceiver() {
                 VideoPlayer.adjustOffset(dx, dy)
                 if (ImagePlayer.isActive.value) ImagePlayer.adjustOffset(dx, dy)
             }
-            // ── Image-only actions ────────────────────────────────────────────
+            ACTION_SPEED    -> VideoPlayer.cycleSpeed()
             ACTION_IMAGE_STOP   -> ImagePlayer.stop()
             ACTION_IMAGE_RELOAD -> {
-                // Re-attach the GL renderer to the current camera surface
                 if (ImagePlayer.isActive.value) ImagePlayer.activateInjection()
             }
         }
@@ -53,6 +51,7 @@ class VideoControlReceiver : BroadcastReceiver() {
         const val ACTION_ZOOM_IN      = "com.wangyiheng.vcamsx.ZOOM_IN"
         const val ACTION_ZOOM_OUT     = "com.wangyiheng.vcamsx.ZOOM_OUT"
         const val ACTION_ADJUST       = "com.wangyiheng.vcamsx.ADJUST"
+        const val ACTION_SPEED        = "com.wangyiheng.vcamsx.SPEED"
         const val ACTION_IMAGE_STOP   = "com.wangyiheng.vcamsx.IMAGE_STOP"
         const val ACTION_IMAGE_RELOAD = "com.wangyiheng.vcamsx.IMAGE_RELOAD"
 
@@ -65,15 +64,15 @@ class VideoControlReceiver : BroadcastReceiver() {
                 addAction(ACTION_ZOOM_IN)
                 addAction(ACTION_ZOOM_OUT)
                 addAction(ACTION_ADJUST)
+                addAction(ACTION_SPEED)
                 addAction(ACTION_IMAGE_STOP)
                 addAction(ACTION_IMAGE_RELOAD)
             }
             try {
-                if (Build.VERSION.SDK_INT >= 33) {
+                if (Build.VERSION.SDK_INT >= 33)
                     context.registerReceiver(VideoControlReceiver(), filter, Context.RECEIVER_EXPORTED)
-                } else {
+                else
                     context.registerReceiver(VideoControlReceiver(), filter)
-                }
             } catch (e: Exception) {
                 try { context.registerReceiver(VideoControlReceiver(), filter) } catch (_: Exception) {}
             }

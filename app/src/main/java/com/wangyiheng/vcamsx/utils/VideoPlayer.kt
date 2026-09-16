@@ -42,7 +42,6 @@ object VideoPlayer {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
-                // Image mode: generate NV21 from bitmap instead of video decoder
                 val frame = if (ImagePlayer.isActive.value) {
                     ImagePlayer.currentBitmapSnapshot()?.let { bmp ->
                         bitmapToNv21(bmp, 720, 1280)
@@ -146,8 +145,6 @@ object VideoPlayer {
     fun c2_reader_play(surface: Surface) {
         if (surface == copyReaderSurface) return
         copyReaderSurface = surface
-        // If image injection is active, NV21 is already in data_buffer.
-        // Just ensure the writer loop is running — it will push frames automatically.
         if (ImagePlayer.isActive.value) {
             startWriterLoop()
             Log.d(TAG, "c2_reader_play: image mode active, writer loop ensured")
@@ -176,22 +173,23 @@ object VideoPlayer {
                 mp.setVolume(volume, volume)
                 if (surface != currentRunningSurface) {
                     val tx = buildTransformer(surface)
-                    activeTransformer?.stop(); activeTransformer = tx
-                    mp.setSurface(tx?.inputSurface ?: surface)
+                    activeTransformer?.stop()
+                    activeTransformer     = tx
                     currentRunningSurface = surface
                 }
                 return
             }
-            if (!isInitializing) initMediaPlayer(surface)
+            if (isInitializing) return
+            val tx = buildTransformer(surface)
+            activeTransformer?.stop()
+            activeTransformer = tx
+            initMediaPlayer(tx?.inputSurface ?: surface)
         } catch (e: Exception) { Log.e(TAG, "handleMP: ${e.message}") }
     }
 
     private fun handleMediaPlayerDirect(surface: Surface) {
-        try {
-            val mp = mediaPlayer
-            if (mp != null && mp.isPlaying) return
-            if (!isInitializing) initMediaPlayerSurface(surface)
-        } catch (e: Exception) { Log.e(TAG, "handleMPDirect: ${e.message}") }
+        if (surface == currentRunningSurface) return
+        initMediaPlayerSurface(surface)
     }
 
     private fun initMediaPlayer(surface: Surface) {
@@ -199,16 +197,13 @@ object VideoPlayer {
         val ctx    = MainHook.context ?: run { isInitializing = false; return }
         val status = InfoProcesser.videoStatus
         val volume = if (status?.volume == true) 1f else 0f
-
-        val tx        = buildTransformer(surface)
-        val renderSrf = tx?.inputSurface ?: surface
-        activeTransformer = tx
-
+        val tx     = activeTransformer
         try {
             mediaPlayer = MediaPlayer().apply {
-                isLooping = true; setSurface(renderSrf); setVolume(volume, volume)
+                isLooping = true; setSurface(surface); setVolume(volume, volume)
                 setOnPreparedListener { player ->
                     isInitializing = false; currentRunningSurface = surface
+                    applySpeed(player)
                     if (!VideoControls.isPaused.value) player.start()
                     try { MainHook.origin_preview_camera?.stopPreview() } catch (_: Exception) {}
                 }
@@ -233,6 +228,7 @@ object VideoPlayer {
                 isLooping = true; setSurface(surface); setVolume(volume, volume)
                 setOnPreparedListener { player ->
                     isInitializing = false; currentRunningSurface = surface
+                    applySpeed(player)
                     if (!VideoControls.isPaused.value) player.start()
                     try { MainHook.origin_preview_camera?.stopPreview() } catch (_: Exception) {}
                 }
@@ -256,6 +252,29 @@ object VideoPlayer {
             )
             if (t.start()) t else { Log.e(TAG, "GL timeout"); null }
         } catch (e: Exception) { Log.e(TAG, "buildTX: ${e.message}"); null }
+    }
+
+    private fun applySpeed(mp: MediaPlayer) {
+        if (Build.VERSION.SDK_INT >= 23) {
+            try {
+                mp.playbackParams = mp.playbackParams.setSpeed(VideoControls.speed)
+            } catch (e: Exception) { Log.e(TAG, "applySpeed: ${e.message}") }
+        }
+    }
+
+    fun cycleSpeed() {
+        val steps = VideoControls.speedSteps
+        VideoControls.speedIndex.value = (VideoControls.speedIndex.value + 1) % steps.size
+        val newSpeed = VideoControls.speed
+        Log.d(TAG, "cycleSpeed → $newSpeed×")
+        try {
+            mediaPlayer?.let { mp ->
+                if (Build.VERSION.SDK_INT >= 23) {
+                    mp.playbackParams = mp.playbackParams.setSpeed(newSpeed)
+                }
+            }
+            ijkMediaPlayer?.setSpeed(newSpeed)
+        } catch (e: Exception) { Log.e(TAG, "cycleSpeed apply: ${e.message}") }
     }
 
     fun togglePause() {
@@ -292,7 +311,7 @@ object VideoPlayer {
         if (ImagePlayer.isActive.value) { ImagePlayer.adjustOffset(dx, dy); return }
         try {
             val t = activeTransformer ?: return
-            t.offsetX = (t.offsetX - dx * (2f / 1280f)).coerceIn(-1.5f, 1.5f)
+            t.offsetX = (t.offsetX + dx * (2f / 1280f)).coerceIn(-1.5f, 1.5f)
             t.offsetY = (t.offsetY + dy * (2f / 720f)).coerceIn(-1.5f, 1.5f)
             t.needsRedraw = true
         } catch (e: Exception) { Log.e(TAG, "adj: ${e.message}") }
@@ -301,7 +320,7 @@ object VideoPlayer {
     fun zoomIn() {
         if (ImagePlayer.isActive.value) { ImagePlayer.zoomIn(); return }
         try {
-            val s = (VideoControls.scale.value + 0.02f).coerceAtMost(3.0f)
+            val s = (VideoControls.scale.value + 0.1f).coerceAtMost(3.0f)
             VideoControls.scale.value = s
             activeTransformer?.also { it.scaleValue = s; it.needsRedraw = true }
         } catch (e: Exception) { Log.e(TAG, "zoomIn: ${e.message}") }
@@ -310,7 +329,7 @@ object VideoPlayer {
     fun zoomOut() {
         if (ImagePlayer.isActive.value) { ImagePlayer.zoomOut(); return }
         try {
-            val s = (VideoControls.scale.value - 0.02f).coerceAtLeast(0.3f)
+            val s = (VideoControls.scale.value - 0.1f).coerceAtLeast(0.3f)
             VideoControls.scale.value = s
             activeTransformer?.also { it.scaleValue = s; it.needsRedraw = true }
         } catch (e: Exception) { Log.e(TAG, "zoomOut: ${e.message}") }

@@ -27,6 +27,7 @@ import androidx.lifecycle.*
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.*
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.wangyiheng.vcamsx.utils.VideoControls
 
 class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
@@ -118,16 +119,15 @@ class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwn
         .build()
 }
 
-// ── Colors — matches app exactly ──────────────────────────────────────────────
-private val PanelBg   = Color(0xFF080B12)   // same as license/home bg
-private val CardBg    = Color(0xFF111622)   // same card color
-private val Accent    = Color(0xFF00E5FF)   // same cyan
-private val TextHigh  = Color(0xFFE0E4FF)   // same off-white
-private val TextDim   = Color(0xFF5A6478)   // same subtext
-private val Divider   = Color(0xFF1C2333)   // same divider
-private val GreenCol  = Color(0xFF00E676)
-private val RedCol    = Color(0xFFFF4757)
-private val OrbBg     = Color(0xFF111622)
+private val PanelBg  = Color(0xFF080B12)
+private val CardBg   = Color(0xFF111622)
+private val Accent   = Color(0xFF00E5FF)
+private val TextHigh = Color(0xFFE0E4FF)
+private val TextDim  = Color(0xFF5A6478)
+private val Divider  = Color(0xFF1C2333)
+private val GreenCol = Color(0xFF00E676)
+private val RedCol   = Color(0xFFFF4757)
+private val OrbBg    = Color(0xFF111622)
 
 @Composable
 fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> Unit) {
@@ -137,8 +137,13 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
     var rotation   by remember { mutableStateOf(0) }
     var isFlipped  by remember { mutableStateOf(false) }
 
+    val speedIdx by VideoControls.speedIndex
+    val speedLabel = VideoControls.speedSteps[speedIdx].let {
+        if (it == it.toLong().toFloat()) "${it.toLong()}×" else "${it}×"
+    }
+    val speedAtDefault = speedIdx == 1
+
     if (!expanded) {
-        // ── Collapsed orb — clean dot ──────────────────────────────────────
         Box(
             modifier         = Modifier
                 .size(48.dp)
@@ -153,15 +158,10 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                 border         = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(0.5f)),
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(Accent, CircleShape)
-                )
+                Box(Modifier.size(10.dp).background(Accent, CircleShape))
             }
         }
     } else {
-        // ── Expanded panel ───────────────────────────────────────────────────
         Card(
             shape    = RoundedCornerShape(16.dp),
             colors   = CardDefaults.cardColors(containerColor = PanelBg),
@@ -174,34 +174,22 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                 Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Header
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Controls",
-                        color      = TextHigh,
-                        fontSize   = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("Controls", color = TextHigh, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     TextButton(
                         onClick        = { expanded = false; showAdjust = false },
                         contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("—", color = TextDim, fontSize = 16.sp)
-                    }
+                    ) { Text("—", color = TextDim, fontSize = 16.sp) }
                 }
 
                 Divider(color = Divider, thickness = 0.5.dp)
 
                 if (!showAdjust) {
-                    // Main controls
-                    FBtn(
-                        label = if (isPaused) "Resume" else "Pause",
-                        color = if (isPaused) GreenCol else Accent
-                    ) {
+                    FBtn(if (isPaused) "Resume" else "Pause", if (isPaused) GreenCol else Accent) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_PAUSE)
                         isPaused = !isPaused
                     }
@@ -220,19 +208,21 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_FLIP)
                         isFlipped = !isFlipped
                     }
+
+                    FBtn(
+                        label = "Speed  $speedLabel",
+                        color = if (speedAtDefault) Accent else GreenCol
+                    ) {
+                        FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_SPEED)
+                    }
+
                     FBtn("Adjust", TextDim) { showAdjust = true }
 
                 } else {
-                    // Adjust panel
-                    Text(
-                        "Adjust Position",
-                        color      = TextDim,
-                        fontSize   = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text("Adjust Position", color = TextDim, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         FBtn("Up", Accent, 80) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, -30)
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, 30)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -245,7 +235,7 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         FBtn("Down", Accent, 80) {
-                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, 30)
+                            FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_ADJUST, 0, -30)
                         }
                     }
 
