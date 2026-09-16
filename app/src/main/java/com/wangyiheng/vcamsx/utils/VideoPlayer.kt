@@ -292,8 +292,8 @@ object VideoPlayer {
         if (ImagePlayer.isActive.value) { ImagePlayer.adjustOffset(dx, dy); return }
         try {
             val t = activeTransformer ?: return
-            t.offsetX = (t.offsetX + dx * (2f / 1280f)).coerceIn(-1.5f, 1.5f)
-            t.offsetY = (t.offsetY - dy * (2f / 720f)).coerceIn(-1.5f, 1.5f)
+            t.offsetX = (t.offsetX - dx * (2f / 1280f)).coerceIn(-1.5f, 1.5f)
+            t.offsetY = (t.offsetY + dy * (2f / 720f)).coerceIn(-1.5f, 1.5f)
             t.needsRedraw = true
         } catch (e: Exception) { Log.e(TAG, "adj: ${e.message}") }
     }
@@ -301,7 +301,7 @@ object VideoPlayer {
     fun zoomIn() {
         if (ImagePlayer.isActive.value) { ImagePlayer.zoomIn(); return }
         try {
-            val s = (VideoControls.scale.value + 0.1f).coerceAtMost(3.0f)
+            val s = (VideoControls.scale.value + 0.02f).coerceAtMost(3.0f)
             VideoControls.scale.value = s
             activeTransformer?.also { it.scaleValue = s; it.needsRedraw = true }
         } catch (e: Exception) { Log.e(TAG, "zoomIn: ${e.message}") }
@@ -310,7 +310,7 @@ object VideoPlayer {
     fun zoomOut() {
         if (ImagePlayer.isActive.value) { ImagePlayer.zoomOut(); return }
         try {
-            val s = (VideoControls.scale.value - 0.1f).coerceAtLeast(0.3f)
+            val s = (VideoControls.scale.value - 0.02f).coerceAtLeast(0.3f)
             VideoControls.scale.value = s
             activeTransformer?.also { it.scaleValue = s; it.needsRedraw = true }
         } catch (e: Exception) { Log.e(TAG, "zoomOut: ${e.message}") }
