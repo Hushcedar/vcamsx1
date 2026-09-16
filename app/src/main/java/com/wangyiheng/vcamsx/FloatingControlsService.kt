@@ -27,7 +27,6 @@ import androidx.lifecycle.*
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.*
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.wangyiheng.vcamsx.utils.VideoControls
 
 class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
@@ -119,15 +118,18 @@ class FloatingControlsService : Service(), LifecycleOwner, SavedStateRegistryOwn
         .build()
 }
 
-private val PanelBg  = Color(0xFF080B12)
-private val CardBg   = Color(0xFF111622)
+// ── Colors ────────────────────────────────────────────────────────────────────
+private val PanelBg  = Color(0xCC080B12)
+private val CardBg   = Color(0xBB111622)
 private val Accent   = Color(0xFF00E5FF)
 private val TextHigh = Color(0xFFE0E4FF)
 private val TextDim  = Color(0xFF5A6478)
 private val Divider  = Color(0xFF1C2333)
 private val GreenCol = Color(0xFF00E676)
 private val RedCol   = Color(0xFFFF4757)
-private val OrbBg    = Color(0xFF111622)
+private val OrbBg    = Color(0xBB111622)
+
+private val speedSteps = listOf(0.5f, 1.0f, 1.5f, 2.0f, 3.0f)
 
 @Composable
 fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> Unit) {
@@ -137,10 +139,9 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
     var rotation   by remember { mutableStateOf(0) }
     var isFlipped  by remember { mutableStateOf(false) }
 
-    val speedIdx by VideoControls.speedIndex
-    val speedLabel = VideoControls.speedSteps[speedIdx].let {
-        if (it == it.toLong().toFloat()) "${it.toLong()}×" else "${it}×"
-    }
+    var speedIdx by remember { mutableStateOf(1) }
+    val speed         = speedSteps[speedIdx]
+    val speedLabel    = if (speed == speed.toLong().toFloat()) "${speed.toLong()}×" else "${speed}×"
     val speedAtDefault = speedIdx == 1
 
     if (!expanded) {
@@ -214,6 +215,7 @@ fun FloatingUI(context: Context, onMove: (Float, Float) -> Unit, onClose: () -> 
                         color = if (speedAtDefault) Accent else GreenCol
                     ) {
                         FloatingControlsService.sendControl(context, VideoControlReceiver.ACTION_SPEED)
+                        speedIdx = (speedIdx + 1) % speedSteps.size
                     }
 
                     FBtn("Adjust", TextDim) { showAdjust = true }
