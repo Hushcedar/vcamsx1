@@ -158,22 +158,45 @@ object LicenseManager {
     }
 
     private fun isOnline(ctx: Context): Boolean {
+        // Step 1: active network with internet capability
         val cm   = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val net  = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
-        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
-            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return false
-        return try {
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+
+        // Step 2: probe Google generate_204. Accept ANY HTTP response.
+        // Strict 204-only check was rejecting real networks behind proxies/NAT.
+        // Security is handled by Supabase used-key detection + anti-rollback + NTP.
+        try {
             val conn = java.net.URL("https://www.google.com/generate_204")
                 .openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 3000
-            conn.readTimeout    = 3000
-            conn.requestMethod  = "GET"
+            conn.connectTimeout          = 8000
+            conn.readTimeout             = 8000
+            conn.requestMethod           = "GET"
             conn.instanceFollowRedirects = false
             conn.connect()
             val code = conn.responseCode
             conn.disconnect()
-            code == 204
+            if (code > 0) return true
+        } catch (_: Exception) { /* try fallback */ }
+
+        // Step 3: fallback — Cloudflare trace endpoint
+        try {
+            val conn = java.net.URL("https://www.cloudflare.com/cdn-cgi/trace")
+                .openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout          = 8000
+            conn.readTimeout             = 8000
+            conn.requestMethod           = "GET"
+            conn.instanceFollowRedirects = false
+            conn.connect()
+            val code = conn.responseCode
+            conn.disconnect()
+            if (code > 0) return true
+        } catch (_: Exception) { /* try DNS */ }
+
+        // Step 4: DNS fallback
+        return try {
+            java.net.InetAddress.getByName("8.8.8.8") != null
         } catch (_: Exception) { false }
     }
 
