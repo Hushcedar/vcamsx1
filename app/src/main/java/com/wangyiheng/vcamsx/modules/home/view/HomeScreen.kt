@@ -30,8 +30,6 @@ import com.wangyiheng.vcamsx.FloatingControlsService
 import com.wangyiheng.vcamsx.components.LivePlayerDialog
 import com.wangyiheng.vcamsx.components.VideoPlayerDialog
 import com.wangyiheng.vcamsx.modules.home.controllers.HomeController
-import com.wangyiheng.vcamsx.NativeAudioBridge
-import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.ImagePlayer
 
 private val BgColor      = Color(0xFF080B12)
@@ -55,8 +53,6 @@ fun HomeScreen() {
     val imageIsActive  by ImagePlayer.isActive
     val imageHasImage  by ImagePlayer.hasImage
     val imageIsLoading by ImagePlayer.isLoading
-
-    var micOn by remember { mutableStateOf(AudioInjector.isToggleOn) }
 
     val selectVideoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -273,9 +269,8 @@ fun HomeScreen() {
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
 
-                    ToggleRow("Inject Volume", micOn) { on ->
-                        NativeAudioBridge.setEnabled(on, context)
-                        micOn = on
+                    ToggleRow("Inject Volume", homeController.isVideoEnabled.value) {
+                        homeController.saveState()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
