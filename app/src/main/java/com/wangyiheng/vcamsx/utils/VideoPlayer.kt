@@ -176,6 +176,8 @@ object VideoPlayer {
                     activeTransformer?.stop()
                     activeTransformer     = tx
                     currentRunningSurface = surface
+                    val newTarget = tx?.inputSurface ?: surface
+                    try { mp.setSurface(newTarget) } catch (e: Exception) { Log.e(TAG, "reattach: ${e.message}") }
                 }
                 return
             }
@@ -188,7 +190,8 @@ object VideoPlayer {
     }
 
     private fun handleMediaPlayerDirect(surface: Surface) {
-        if (surface == currentRunningSurface) return
+        val mp = mediaPlayer
+        if (mp != null && mp.isPlaying && surface == currentRunningSurface) return
         initMediaPlayerSurface(surface)
     }
 
@@ -363,8 +366,9 @@ object VideoPlayer {
     private fun healthCheck() {
         val s = currentRunningSurface ?: return
         if (!s.isValid) {
-            activeTransformer?.stop(); activeTransformer = null
-            mediaPlayer?.release();    mediaPlayer       = null
+            activeTransformer?.stop(); activeTransformer    = null
+            mediaPlayer?.release();    mediaPlayer          = null
+            currentRunningSurface = null
             isInitializing = false
         }
     }

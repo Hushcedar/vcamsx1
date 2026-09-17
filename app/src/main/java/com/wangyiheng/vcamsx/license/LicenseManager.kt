@@ -158,11 +158,27 @@ object LicenseManager {
     }
 
     private fun isOnline(ctx: Context): Boolean {
+        // Step 1: fast check — is there a validated network at all?
         val cm   = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val net  = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return false
+
+        // Step 2: actually probe the internet — data toggled on ≠ internet reachable.
+        // generate_204 returns HTTP 204 with no body; fast and lightweight.
+        return try {
+            val url = java.net.URL("https://www.google.com/generate_204")
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 3000
+            conn.readTimeout    = 3000
+            conn.requestMethod  = "GET"
+            conn.instanceFollowRedirects = false
+            conn.connect()
+            val code = conn.responseCode
+            conn.disconnect()
+            code == 204
+        } catch (_: Exception) { false }
     }
 
     private fun getNtpMin(): Int? = try {
