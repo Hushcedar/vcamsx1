@@ -158,23 +158,18 @@ object LicenseManager {
     }
 
     private fun isOnline(ctx: Context): Boolean {
-        // Step 1: must have an active network with internet capability
         val cm   = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val net  = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
-        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
-
-        // Step 2: probe generate_204 and require exactly HTTP 204.
-        // Carriers with no data plan return a captive portal (200/302 with body).
-        // Google's generate_204 returns nothing but 204 when the path to the open
-        // internet is clear — same check Android uses internally.
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return false
         return try {
             val conn = java.net.URL("https://www.google.com/generate_204")
                 .openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout          = 8000
-            conn.readTimeout             = 8000
-            conn.requestMethod           = "GET"
-            conn.instanceFollowRedirects = false   // don't follow captive-portal redirect
+            conn.connectTimeout = 3000
+            conn.readTimeout    = 3000
+            conn.requestMethod  = "GET"
+            conn.instanceFollowRedirects = false
             conn.connect()
             val code = conn.responseCode
             conn.disconnect()
