@@ -163,32 +163,22 @@ object LicenseManager {
         val net  = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
         if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
-        // Note: NET_CAPABILITY_VALIDATED is intentionally NOT required —
-        // many carriers and ROMs don't reliably set it.
 
-        // Step 2: HTTP probe — any response (200, 204, 301…) counts as online.
-        // Only timeout / DNS failure / no-route = truly offline.
-        val probeUrls = listOf(
-            "https://www.google.com/generate_204",
-            "https://www.cloudflare.com/cdn-cgi/trace"
-        )
-        for (urlStr in probeUrls) {
-            try {
-                val conn = java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 8000
-                conn.readTimeout    = 8000
-                conn.requestMethod  = "GET"
-                conn.instanceFollowRedirects = false
-                conn.connect()
-                val code = conn.responseCode
-                conn.disconnect()
-                if (code > 0) return true
-            } catch (_: Exception) { }
-        }
-
-        // Step 3: DNS fallback
+        // Step 2: probe generate_204 and require exactly HTTP 204.
+        // Carriers with no data plan return a captive portal (200/302 with body).
+        // Google's generate_204 returns nothing but 204 when the path to the open
+        // internet is clear — same check Android uses internally.
         return try {
-            java.net.InetAddress.getByName("8.8.8.8") != null
+            val conn = java.net.URL("https://www.google.com/generate_204")
+                .openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout          = 8000
+            conn.readTimeout             = 8000
+            conn.requestMethod           = "GET"
+            conn.instanceFollowRedirects = false   // don't follow captive-portal redirect
+            conn.connect()
+            val code = conn.responseCode
+            conn.disconnect()
+            code == 204
         } catch (_: Exception) { false }
     }
 

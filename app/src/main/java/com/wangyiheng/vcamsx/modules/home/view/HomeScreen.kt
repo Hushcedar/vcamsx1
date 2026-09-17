@@ -30,30 +30,33 @@ import com.wangyiheng.vcamsx.FloatingControlsService
 import com.wangyiheng.vcamsx.components.LivePlayerDialog
 import com.wangyiheng.vcamsx.components.VideoPlayerDialog
 import com.wangyiheng.vcamsx.modules.home.controllers.HomeController
+import com.wangyiheng.vcamsx.NativeAudioBridge
+import com.wangyiheng.vcamsx.utils.AudioInjector
 import com.wangyiheng.vcamsx.utils.ImagePlayer
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-private val BgColor      = Color(0xFF080B12)   // matches LicenseScreen
-private val CardColor    = Color(0xFF111622)   // card background
-private val CardRaised   = Color(0xFF1A1F2A)   // elevated card
-private val AccentColor  = Color(0xFF00E5FF)   // cyan accent
-private val TextColor    = Color(0xFFE0E4FF)   // off-white primary text
-private val SubTextColor = Color(0xFF5A6478)   // muted labels
-private val DividerColor = Color(0xFF1C2333)   // subtle divider
-private val OverlayBtn   = Color(0xFF1A1F2A)   // controls button bg
+private val BgColor      = Color(0xFF080B12)
+private val CardColor    = Color(0xFF111622)
+private val CardRaised   = Color(0xFF1A1F2A)
+private val AccentColor  = Color(0xFF00E5FF)
+private val TextColor    = Color(0xFFE0E4FF)
+private val SubTextColor = Color(0xFF5A6478)
+private val DividerColor = Color(0xFF1C2333)
+private val OverlayBtn   = Color(0xFF1A1F2A)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen() {
-    val context = LocalContext.current
+    val context        = LocalContext.current
     val homeController = viewModel<HomeController>()
-    val videoPath = context.getExternalFilesDir(null)!!.absolutePath + "/copied_video.mp4"
+    val videoPath      = context.getExternalFilesDir(null)!!.absolutePath + "/copied_video.mp4"
 
     LaunchedEffect(Unit) { homeController.init() }
 
     val imageIsActive  by ImagePlayer.isActive
     val imageHasImage  by ImagePlayer.hasImage
     val imageIsLoading by ImagePlayer.isLoading
+
+    var micOn by remember { mutableStateOf(AudioInjector.isToggleOn) }
 
     val selectVideoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -132,30 +135,20 @@ fun HomeScreen() {
         ) {
             Spacer(Modifier.height(8.dp))
 
-            // ── Header ────────────────────────────────────────────────────────
             Row(
                 modifier              = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        "VCamSX",
-                        color      = TextColor,
-                        fontSize   = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "Injection Control",
-                        color    = SubTextColor,
-                        fontSize = 12.sp
-                    )
+                    Text("VCamSX", color = TextColor, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Injection Control", color = SubTextColor, fontSize = 12.sp)
                 }
                 Row(
-                    modifier          = Modifier
+                    modifier              = Modifier
                         .background(Color(0xFF0D2E1A), RoundedCornerShape(20.dp))
                         .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(Modifier.size(6.dp).background(Color(0xFF00E676), CircleShape))
@@ -163,7 +156,6 @@ fun HomeScreen() {
                 }
             }
 
-            // ── Stream URL card ───────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(16.dp),
@@ -190,7 +182,6 @@ fun HomeScreen() {
                 }
             }
 
-            // ── Feed controls card ────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(16.dp),
@@ -213,17 +204,12 @@ fun HomeScreen() {
                         enabled = !imageIsLoading
                     ) { selectImageLauncher.launch("image/*") }
 
-                    AppButton(
-                        text    = "View Image",
-                        enabled = imageHasImage
-                    ) { showImagePreview = true }
-
+                    AppButton("View Image",       enabled = imageHasImage) { showImagePreview = true }
                     AppButton("View Video")       { homeController.isVideoDisplay.value = true }
                     AppButton("View Live Stream") { homeController.isLiveStreamingDisplay.value = true }
                 }
             }
 
-            // ── Overlay controls button ───────────────────────────────────────
             Button(
                 onClick = {
                     if (Settings.canDrawOverlays(context)) FloatingControlsService.start(context)
@@ -235,15 +221,9 @@ fun HomeScreen() {
                 shape    = RoundedCornerShape(12.dp),
                 colors   = ButtonDefaults.buttonColors(containerColor = AccentColor)
             ) {
-                Text(
-                    "Controls",
-                    color      = Color(0xFF040607),
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 15.sp
-                )
+                Text("Controls", color = Color(0xFF040607), fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
 
-            // ── Toggles card ──────────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(16.dp),
@@ -254,6 +234,11 @@ fun HomeScreen() {
                     ToggleRow("Inject Video", homeController.isVideoEnabled.value) {
                         homeController.isVideoEnabled.value = it
                         homeController.saveState()
+                        Toast.makeText(
+                            context,
+                            if (it) "Video injection ON" else "Video injection OFF",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
@@ -269,11 +254,13 @@ fun HomeScreen() {
                                 homeController.saveState()
                                 ImagePlayer.activateInjection()
                                 context.sendBroadcast(android.content.Intent("com.wangyiheng.vcamsx.IMAGE_RELOAD"))
+                                Toast.makeText(context, "Image injection ON", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "Select an image first", Toast.LENGTH_SHORT).show()
                             }
                         } else {
                             ImagePlayer.stop()
+                            Toast.makeText(context, "Image injection OFF", Toast.LENGTH_SHORT).show()
                         }
                     }
 
@@ -286,9 +273,9 @@ fun HomeScreen() {
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
 
-                    ToggleRow("Inject Volume", homeController.isVolumeEnabled.value) {
-                        homeController.isVolumeEnabled.value = it
-                        homeController.saveState()
+                    ToggleRow("Inject Volume", micOn) { on ->
+                        NativeAudioBridge.setEnabled(on, context)
+                        micOn = on
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
@@ -311,8 +298,6 @@ fun HomeScreen() {
         }
     }
 }
-
-// ── Shared components ─────────────────────────────────────────────────────────
 
 @Composable
 fun AppButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -351,11 +336,7 @@ fun ToggleRow(
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            label,
-            color    = if (enabled) TextColor else SubTextColor,
-            fontSize = 15.sp
-        )
+        Text(label, color = if (enabled) TextColor else SubTextColor, fontSize = 15.sp)
         Switch(
             checked         = checked,
             onCheckedChange = onChange,
