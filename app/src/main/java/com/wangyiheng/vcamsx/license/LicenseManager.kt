@@ -158,26 +158,37 @@ object LicenseManager {
     }
 
     private fun isOnline(ctx: Context): Boolean {
-        // Step 1: fast check — is there a validated network at all?
+        // Step 1: must have an active network with internet capability
         val cm   = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val net  = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
-        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
-            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return false
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+        // Note: NET_CAPABILITY_VALIDATED is intentionally NOT required —
+        // many carriers and ROMs don't reliably set it.
 
-        // Step 2: actually probe the internet — data toggled on ≠ internet reachable.
-        // generate_204 returns HTTP 204 with no body; fast and lightweight.
+        // Step 2: HTTP probe — any response (200, 204, 301…) counts as online.
+        // Only timeout / DNS failure / no-route = truly offline.
+        val probeUrls = listOf(
+            "https://www.google.com/generate_204",
+            "https://www.cloudflare.com/cdn-cgi/trace"
+        )
+        for (urlStr in probeUrls) {
+            try {
+                val conn = java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout    = 8000
+                conn.requestMethod  = "GET"
+                conn.instanceFollowRedirects = false
+                conn.connect()
+                val code = conn.responseCode
+                conn.disconnect()
+                if (code > 0) return true
+            } catch (_: Exception) { }
+        }
+
+        // Step 3: DNS fallback
         return try {
-            val url = java.net.URL("https://www.google.com/generate_204")
-            val conn = url.openConnection() as java.net.HttpURLConnection
-            conn.connectTimeout = 3000
-            conn.readTimeout    = 3000
-            conn.requestMethod  = "GET"
-            conn.instanceFollowRedirects = false
-            conn.connect()
-            val code = conn.responseCode
-            conn.disconnect()
-            code == 204
+            java.net.InetAddress.getByName("8.8.8.8") != null
         } catch (_: Exception) { false }
     }
 
