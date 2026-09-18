@@ -37,7 +37,6 @@ class MainHook : IXposedHookLoadPackage {
     private val nonPreviewSurfaces: MutableSet<Surface> = Collections.newSetFromMap(ConcurrentHashMap())
     private val hookedDeviceClasses: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     private val hookedCallbackClasses: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
-    private val hookedReaderClasses: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
     companion object {
         const val TAG = "vcamsx"
@@ -417,6 +416,7 @@ class MainHook : IXposedHookLoadPackage {
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
         val cl = lpparam.classLoader
+
         try {
             XposedHelpers.findAndHookMethod("android.media.ImageReader", cl,
                 "newInstance", Int::class.java, Int::class.java, Int::class.java, Int::class.java,
@@ -431,7 +431,6 @@ class MainHook : IXposedHookLoadPackage {
                             val surf = reader.javaClass.getMethod("getSurface").invoke(reader) as? Surface ?: return
                             nonPreviewSurfaces.add(surf)
                             VideoPlayer.addImageWriterTarget(surf, fmt, w, h)
-                            hookAcquireOnReaderClass(reader.javaClass, w, h)
                         } catch (e: Throwable) { XposedBridge.log("$TAG IR.newInstance inner: $e") }
                     }
                 }
@@ -443,35 +442,33 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         (param.result as? Surface)?.let { nonPreviewSurfaces.add(it) }
-                        hookAcquireOnReaderClass(param.thisObject.javaClass, 0, 0)
                     }
                 }
             )
         } catch (_: Throwable) {}
-    }
 
-    private fun hookAcquireOnReaderClass(cls: Class<*>, readerW: Int, readerH: Int) {
-        if (!hookedReaderClasses.add(cls.name)) return
-        val swapHook = object : XC_MethodHook() {
+        // Class-level acquire hooks — fires regardless of WHEN the ImageReader was created
+        val acquireHook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
-                XposedBridge.log("$TAG acquireImage FIRED imageActive=${ImagePlayer.isActive.value}")
                 if (!ImagePlayer.isActive.value) return
-                val bmp = ImagePlayer.currentBitmapSnapshot() ?: run {
-                    XposedBridge.log("$TAG acquireImage: no bitmap"); return
-                }
+                val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
                 val image = param.result as? Image ?: return
+
+                val readerW = try { param.thisObject.javaClass.getMethod("getWidth") .invoke(param.thisObject) as? Int ?: 0 } catch (_: Throwable) { 0 }
+                val readerH = try { param.thisObject.javaClass.getMethod("getHeight").invoke(param.thisObject) as? Int ?: 0 } catch (_: Throwable) { 0 }
+
                 try {
-                    val fmt = image.format
-                    XposedBridge.log("$TAG acquireImage: fmt=$fmt cap=${image.width}x${image.height}")
+                    val fmt  = image.format
+                    val capW = image.width.takeIf  { it > 0 } ?: readerW.takeIf { it > 0 } ?: bmp.width
+                    val capH = image.height.takeIf { it > 0 } ?: readerH.takeIf { it > 0 } ?: bmp.height
+                    XposedBridge.log("$TAG acquireImage FIRED fmt=$fmt ${capW}x${capH} bmp=${bmp.width}x${bmp.height}")
 
                     when (fmt) {
                         android.graphics.ImageFormat.JPEG -> {
                             val plane = image.planes.getOrNull(0) ?: return
                             val buf   = plane.buffer
-                            val capW  = image.width
-                            val capH  = image.height
                             val composite = compositeOnCapture(bmp, capW, capH)
-                            val stream    = ByteArrayOutputStream()
+                            val stream = ByteArrayOutputStream()
                             composite.compress(Bitmap.CompressFormat.JPEG, 95, stream)
                             if (composite !== bmp) composite.recycle()
                             val jpeg = stream.toByteArray()
@@ -479,13 +476,11 @@ class MainHook : IXposedHookLoadPackage {
                             buf.put(jpeg, 0, minOf(jpeg.size, buf.capacity()))
                             buf.rewind()
                             resolveCtx()?.let { showToast(it, "Captured: ${capW}×${capH} ← ${bmp.width}×${bmp.height}") }
-                            XposedBridge.log("$TAG acquireImage JPEG: wrote ${jpeg.size}b")
+                            XposedBridge.log("$TAG acquireImage JPEG: ${jpeg.size}b")
                         }
                         android.graphics.ImageFormat.YUV_420_888,
                         android.graphics.ImageFormat.NV21,
                         17 -> {
-                            val capW = image.width.takeIf { it > 0 } ?: readerW.takeIf { it > 0 } ?: bmp.width
-                            val capH = image.height.takeIf { it > 0 } ?: readerH.takeIf { it > 0 } ?: bmp.height
                             val composite = compositeOnCapture(bmp, capW, capH)
                             val nv21 = VideoPlayer.bitmapToNv21Public(composite, capW, capH)
                             if (composite !== bmp) composite.recycle()
@@ -497,8 +492,14 @@ class MainHook : IXposedHookLoadPackage {
                 } catch (e: Throwable) { XposedBridge.log("$TAG acquireImage swap: $e") }
             }
         }
-        try { XposedHelpers.findAndHookMethod(cls, "acquireLatestImage", swapHook) } catch (_: Throwable) {}
-        try { XposedHelpers.findAndHookMethod(cls, "acquireNextImage",   swapHook) } catch (_: Throwable) {}
+        try {
+            XposedHelpers.findAndHookMethod("android.media.ImageReader", cl, "acquireLatestImage", acquireHook)
+            XposedBridge.log("$TAG hooked IR.acquireLatestImage")
+        } catch (e: Throwable) { XposedBridge.log("$TAG IR.acquireLatestImage: $e") }
+        try {
+            XposedHelpers.findAndHookMethod("android.media.ImageReader", cl, "acquireNextImage", acquireHook)
+            XposedBridge.log("$TAG hooked IR.acquireNextImage")
+        } catch (e: Throwable) { XposedBridge.log("$TAG IR.acquireNextImage: $e") }
     }
 
     private fun writeNV21ToImage(img: Image, nv21: ByteArray, w: Int, h: Int) {

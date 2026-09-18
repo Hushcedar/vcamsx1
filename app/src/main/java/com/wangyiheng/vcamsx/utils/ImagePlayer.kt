@@ -71,8 +71,6 @@ object ImagePlayer {
             currentBitmap?.recycle()
             currentBitmap = bmp
 
-            // Convert image to MP4 and write to copied_video.mp4
-            // VideoProvider serves this file — identical pipeline to video mode
             val outDir  = context.getExternalFilesDir(null) ?: context.filesDir
             val outFile = File(outDir, "copied_video.mp4")
             Log.d(TAG, "encoding image→mp4...")
@@ -86,7 +84,6 @@ object ImagePlayer {
                 onResult(true)
             }
 
-            // Also try GL renderer as backup if virtual surface is ready
             HookBridge.getVirtualSurface()?.takeIf { it.isValid }?.let {
                 Log.d(TAG, "virtual surface ready — also starting GL renderer")
                 startRenderer(bmp, it)
@@ -99,15 +96,25 @@ object ImagePlayer {
     }
 
     // ── Image → looping MP4 ───────────────────────────────────────────────────
-    // Encodes bitmap as a 30-second H.264 MP4 at 1fps.
-    // MediaPlayer.isLooping = true handles the loop.
-    // VideoProvider serves this as copied_video.mp4 — same as video mode.
+    // Letterboxes into 720×1280 preserving aspect ratio (1.0f cap = never upscale).
+    // Never stretches. Fixes the pre-composite distortion for landscape images.
     private fun bitmapToMp4Loop(src: Bitmap, outFile: File) {
         val W   = 720; val H = 1280
         val FPS = 1;   val DURATION_SEC = 30
 
-        val scaled = if (src.width == W && src.height == H) src
-                     else Bitmap.createScaledBitmap(src, W, H, true)
+        val scale   = minOf(W.toFloat() / src.width, H.toFloat() / src.height, 1.0f)
+        val drawW   = (src.width  * scale).toInt().coerceAtLeast(1)
+        val drawH   = (src.height * scale).toInt().coerceAtLeast(1)
+        val left    = (W - drawW) / 2
+        val top     = (H - drawH) / 2
+
+        val canvas720 = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val c         = android.graphics.Canvas(canvas720)
+        c.drawColor(android.graphics.Color.BLACK)
+        val scaled    = if (drawW == src.width && drawH == src.height) src
+                        else Bitmap.createScaledBitmap(src, drawW, drawH, true)
+        c.drawBitmap(scaled, left.toFloat(), top.toFloat(), null)
+        if (scaled !== src) scaled.recycle()
 
         val muxer = MediaMuxer(
             outFile.absolutePath,
@@ -128,19 +135,18 @@ object ImagePlayer {
         val inputSurface = codec.createInputSurface()
         codec.start()
 
-        // Draw bitmap onto encoder input surface
-        val canvas = inputSurface.lockCanvas(null)
-        canvas.drawBitmap(scaled, null, RectF(0f, 0f, W.toFloat(), H.toFloat()), null)
-        inputSurface.unlockCanvasAndPost(canvas)
+        val encCanvas = inputSurface.lockCanvas(null)
+        encCanvas.drawBitmap(canvas720, null, RectF(0f, 0f, W.toFloat(), H.toFloat()), null)
+        inputSurface.unlockCanvasAndPost(encCanvas)
+        canvas720.recycle()
 
-        // Let encoder run for DURATION_SEC worth of frames then signal EOS
         Thread.sleep((DURATION_SEC * 1000L / FPS).coerceAtMost(2000L))
         codec.signalEndOfInputStream()
 
         val info     = MediaCodec.BufferInfo()
         var trackIdx = -1
         var started  = false
-        var deadline = System.currentTimeMillis() + 5000L
+        val deadline = System.currentTimeMillis() + 5000L
 
         while (System.currentTimeMillis() < deadline) {
             val idx = codec.dequeueOutputBuffer(info, 10_000L)
@@ -166,7 +172,6 @@ object ImagePlayer {
         if (started) try { muxer.stop() } catch (_: Exception) {}
         muxer.release()
         inputSurface.release()
-        if (scaled !== src) scaled.recycle()
     }
 
     fun attachSurface(surface: Surface) {
@@ -254,32 +259,6 @@ object ImagePlayer {
             activeRenderer = r
             Log.d(TAG, "renderer running on $targetSurface")
         } catch (e: Exception) { Log.e(TAG, "startRenderer: ${e.message}", e) }
-    }
-
-    /**
-     * Start pushing NV21 frames into all registered ImageWriter targets.
-     * This is what makes WhatsApp/Instagram/Telegram SEND the image —
-     * they read from ImageReader surfaces, not from the preview surface.
-     * VideoPlayer.startWriterLoop() already reads VideoToFrames.data_buffer,
-     * so we just need to ensure data_buffer has our NV21 and the loop is running.
-     */
-    private fun startImageWriterInjection() {
-        try {
-            // Trigger VideoPlayer's writer loop — it reads data_buffer which
-            // we already set to our NV21 in loadImage()
-            val vpClass = Class.forName("com.wangyiheng.vcamsx.utils.VideoPlayer")
-            val writerThread = vpClass.getDeclaredField("writerThread").also { it.isAccessible = true }
-            val thread = writerThread.get(null) as? Thread
-            if (thread == null || !thread.isAlive) {
-                // Loop not running — call startWriterLoop via reflection
-                val method = vpClass.getDeclaredMethod("startWriterLoop")
-                method.isAccessible = true
-                method.invoke(null)
-                android.util.Log.d("VCamSX-ImagePlayer", "ImageWriter loop started for image injection")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("VCamSX-ImagePlayer", "startImageWriterInjection: ${e.message}")
-        }
     }
 
     private fun stopRenderer() {
