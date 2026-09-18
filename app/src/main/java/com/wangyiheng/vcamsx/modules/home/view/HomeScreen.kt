@@ -230,11 +230,9 @@ fun HomeScreen() {
                     ToggleRow("Inject Video", homeController.isVideoEnabled.value) {
                         homeController.isVideoEnabled.value = it
                         homeController.saveState()
-                        Toast.makeText(
-                            context,
+                        Toast.makeText(context,
                             if (it) "Video injection ON" else "Video injection OFF",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                            Toast.LENGTH_SHORT).show()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
@@ -265,12 +263,19 @@ fun HomeScreen() {
                     ToggleRow("Live Streaming Switch", homeController.isLiveStreamingEnabled.value) {
                         homeController.isLiveStreamingEnabled.value = it
                         homeController.saveState()
+                        Toast.makeText(context,
+                            if (it) "Live streaming ON" else "Live streaming OFF",
+                            Toast.LENGTH_SHORT).show()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
 
-                    ToggleRow("Inject Volume", homeController.isVideoEnabled.value) {
+                    ToggleRow("Inject Volume", homeController.isVolumeEnabled.value) {
+                        homeController.isVolumeEnabled.value = it
                         homeController.saveState()
+                        Toast.makeText(context,
+                            if (it) "Audio injection ON" else "Audio injection OFF",
+                            Toast.LENGTH_SHORT).show()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
@@ -278,6 +283,9 @@ fun HomeScreen() {
                     ToggleRow("Soft Decoding", homeController.codecType.value) {
                         homeController.codecType.value = it
                         homeController.saveState()
+                        Toast.makeText(context,
+                            if (it) "Soft decoding ON" else "Soft decoding OFF",
+                            Toast.LENGTH_SHORT).show()
                     }
 
                     Divider(color = DividerColor, thickness = 0.5.dp)
@@ -285,6 +293,9 @@ fun HomeScreen() {
                     ToggleRow("Open The Real Scene", homeController.isRealSceneEnabled.value) {
                         homeController.isRealSceneEnabled.value = it
                         homeController.saveState()
+                        Toast.makeText(context,
+                            if (it) "Real scene ON" else "Real scene OFF",
+                            Toast.LENGTH_SHORT).show()
                     }
                 }
             }

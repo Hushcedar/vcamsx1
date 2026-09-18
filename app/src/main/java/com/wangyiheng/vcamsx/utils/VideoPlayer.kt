@@ -373,6 +373,9 @@ object VideoPlayer {
         }
     }
 
+    fun bitmapToNv21Public(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray =
+        bitmapToNv21(src, outW, outH)
+
     private fun bitmapToNv21(src: android.graphics.Bitmap, outW: Int, outH: Int): ByteArray {
         val scaled = if (src.width == outW && src.height == outH) src
                      else android.graphics.Bitmap.createScaledBitmap(src, outW, outH, true)
