@@ -34,11 +34,11 @@ object VideoPlayer {
             val writer = android.media.ImageWriter.newInstance(surface, 3)
             imageWriters[writer] = Triple(format, w, h)
             startWriterLoop()
-            Log.d(TAG, "IW registered fmt=$format ${w}x${h} imageActive=${ImagePlayer.isActive.value}")
+            Log.d(TAG, "IW registered fmt=$format ${w}x${h}")
         } catch (e: Exception) { Log.e(TAG, "addIW: ${e.message}") }
     }
 
-    private fun startWriterLoop() {
+    fun startWriterLoop() {
         if (writerThread?.isAlive == true) return
         writerThread = Thread({
             while (!Thread.currentThread().isInterrupted) {
@@ -107,7 +107,9 @@ object VideoPlayer {
                     val virt = MainHook.c2_virtual_surface
                     if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
                     else ImagePlayer.attachSurface(s)
-                } else handleMediaPlayer(s)
+                } else if (InfoProcesser.videoStatus?.isVideoEnable == true) {
+                    handleMediaPlayer(s)
+                }
             }
         }
         MainHook.c2_reader_Surfcae?.let { s -> c2_reader_play(s) }
@@ -147,7 +149,7 @@ object VideoPlayer {
         copyReaderSurface = surface
         if (ImagePlayer.isActive.value) {
             startWriterLoop()
-            Log.d(TAG, "c2_reader_play: image mode active, writer loop ensured")
+            Log.d(TAG, "c2_reader_play: image mode, writer loop running")
             return
         }
         c2_hw_decode_obj?.stopDecode()
@@ -200,7 +202,6 @@ object VideoPlayer {
         val ctx    = MainHook.context ?: run { isInitializing = false; return }
         val status = InfoProcesser.videoStatus
         val volume = if (status?.volume == true) 1f else 0f
-        val tx     = activeTransformer
         try {
             mediaPlayer = MediaPlayer().apply {
                 isLooping = true; setSurface(surface); setVolume(volume, volume)
@@ -217,7 +218,7 @@ object VideoPlayer {
                 prepareAsync()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "initMP: ${e.message}"); tx?.stop(); activeTransformer = null; isInitializing = false
+            Log.e(TAG, "initMP: ${e.message}"); activeTransformer?.stop(); activeTransformer = null; isInitializing = false
         }
     }
 
@@ -259,9 +260,8 @@ object VideoPlayer {
 
     private fun applySpeed(mp: MediaPlayer) {
         if (Build.VERSION.SDK_INT >= 23) {
-            try {
-                mp.playbackParams = mp.playbackParams.setSpeed(VideoControls.speed)
-            } catch (e: Exception) { Log.e(TAG, "applySpeed: ${e.message}") }
+            try { mp.playbackParams = mp.playbackParams.setSpeed(VideoControls.speed) }
+            catch (e: Exception) { Log.e(TAG, "applySpeed: ${e.message}") }
         }
     }
 
@@ -269,15 +269,13 @@ object VideoPlayer {
         val steps = VideoControls.speedSteps
         VideoControls.speedIndex.value = (VideoControls.speedIndex.value + 1) % steps.size
         val newSpeed = VideoControls.speed
-        Log.d(TAG, "cycleSpeed → $newSpeed×")
         try {
             mediaPlayer?.let { mp ->
-                if (Build.VERSION.SDK_INT >= 23) {
+                if (Build.VERSION.SDK_INT >= 23)
                     mp.playbackParams = mp.playbackParams.setSpeed(newSpeed)
-                }
             }
             ijkMediaPlayer?.setSpeed(newSpeed)
-        } catch (e: Exception) { Log.e(TAG, "cycleSpeed apply: ${e.message}") }
+        } catch (e: Exception) { Log.e(TAG, "cycleSpeed: ${e.message}") }
     }
 
     fun togglePause() {

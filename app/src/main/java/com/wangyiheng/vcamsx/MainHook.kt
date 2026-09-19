@@ -7,6 +7,8 @@ import android.graphics.SurfaceTexture
 import android.hardware.Camera
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.Image
@@ -30,6 +32,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import java.io.ByteArrayOutputStream
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainHook : IXposedHookLoadPackage {
 
@@ -38,6 +41,10 @@ class MainHook : IXposedHookLoadPackage {
     private val hookedDeviceClasses: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     private val hookedCallbackClasses: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
+    private val stillReaderSurfaces: MutableSet<Int> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    private val capturePending = AtomicBoolean(false)
+
     companion object {
         const val TAG = "vcamsx"
 
@@ -45,8 +52,6 @@ class MainHook : IXposedHookLoadPackage {
         @JvmField var original_preview_Surface: Surface? = null
         @JvmField var original_c1_preview_SurfaceTexture: SurfaceTexture? = null
         @JvmField var fake_SurfaceTexture: SurfaceTexture? = null
-        @JvmField var c1FakeTexture: SurfaceTexture? = null
-        @JvmField var c1FakeSurface: Surface? = null
         @JvmField var oriHolder: SurfaceHolder? = null
         @JvmField var origin_preview_camera: Camera? = null
         @JvmField var c2_reader_Surfcae: Surface? = null
@@ -69,23 +74,13 @@ class MainHook : IXposedHookLoadPackage {
             else SurfaceTexture(10)
         }
 
-        fun resolveContext(): Context? {
-            if (context != null) return context
-            return try {
-                val atClass = Class.forName("android.app.ActivityThread")
-                val app = atClass.getMethod("currentApplication").invoke(null) as? Application
-                app?.applicationContext?.also { context = it }
-            } catch (_: Throwable) { null }
-        }
-
         fun resolveCtx(): Context? {
             if (context != null) return context
-            val atCtx = try {
+            return try {
                 val at = Class.forName("android.app.ActivityThread")
-                at.getMethod("currentApplication").invoke(null) as? Context
+                (at.getMethod("currentApplication").invoke(null) as? Context)
+                    ?.also { context = it }
             } catch (_: Throwable) { null }
-            if (atCtx != null) { context = atCtx; return atCtx }
-            return null
         }
 
         fun shouldInjectCamera(): Boolean {
@@ -98,11 +93,9 @@ class MainHook : IXposedHookLoadPackage {
         fun compositeOnCapture(ourBmp: Bitmap, captureW: Int, captureH: Int): Bitmap {
             val outW = if (captureW > 0) captureW else ourBmp.width
             val outH = if (captureH > 0) captureH else ourBmp.height
-
             val result = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(result)
             canvas.drawColor(android.graphics.Color.BLACK)
-
             val scale = minOf(
                 outW.toFloat() / ourBmp.width.toFloat(),
                 outH.toFloat() / ourBmp.height.toFloat(),
@@ -112,8 +105,8 @@ class MainHook : IXposedHookLoadPackage {
             val drawH = (ourBmp.height * scale).toInt()
             val left  = (outW - drawW) / 2
             val top   = (outH - drawH) / 2
-
-            canvas.drawBitmap(ourBmp, null, android.graphics.Rect(left, top, left + drawW, top + drawH), null)
+            canvas.drawBitmap(ourBmp, null,
+                android.graphics.Rect(left, top, left + drawW, top + drawH), null)
             return result
         }
 
@@ -130,7 +123,7 @@ class MainHook : IXposedHookLoadPackage {
         if (proc.endsWith(":push") || proc.endsWith(":remote") ||
             proc.endsWith(":nfc") || proc.endsWith(":work")) return
 
-        XposedBridge.log("$TAG hook pkg=${lpparam.packageName} proc=$proc")
+        XposedBridge.log("$TAG hook pkg=${lpparam.packageName}")
         hookAppInit(lpparam)
         hookCamera1(lpparam)
         hookCamera2(lpparam)
@@ -171,13 +164,13 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         if (!shouldInjectCamera()) return
-                        val incomingST = param.args[0] as? SurfaceTexture ?: return
-                        if (incomingST == fake_SurfaceTexture) return
+                        val st = param.args[0] as? SurfaceTexture ?: return
+                        if (st == fake_SurfaceTexture) return
                         if (origin_preview_camera != null && origin_preview_camera == param.thisObject) {
                             param.args[0] = fake_SurfaceTexture; return
                         }
                         origin_preview_camera = param.thisObject as? Camera
-                        original_c1_preview_SurfaceTexture = incomingST
+                        original_c1_preview_SurfaceTexture = st
                         fake_SurfaceTexture = makeFakeST(fake_SurfaceTexture)
                         param.args[0] = fake_SurfaceTexture
                     }
@@ -210,7 +203,7 @@ class MainHook : IXposedHookLoadPackage {
                                 fake_SurfaceTexture = makeFakeST(fake_SurfaceTexture)
                                 cam.setPreviewTexture(fake_SurfaceTexture)
                             } catch (e: Throwable) {
-                                XposedBridge.log("$TAG setPreviewTexture before start: $e")
+                                XposedBridge.log("$TAG C1 setPreviewTexture: $e")
                                 origin_preview_camera = null
                             }
                         }
@@ -219,8 +212,12 @@ class MainHook : IXposedHookLoadPackage {
                         if (!shouldInjectCamera()) return
                         if (ImagePlayer.isActive.value) {
                             val st = original_c1_preview_SurfaceTexture
-                            if (st != null) {
-                                try { ImagePlayer.attachC1Surface(Surface(st)) } catch (_: Throwable) {}
+                            if (st != null) try {
+                                val s = Surface(st)
+                                if (s.isValid) ImagePlayer.attachC1Surface(s)
+                            } catch (_: Throwable) {}
+                            oriHolder?.surface?.let { s ->
+                                if (s.isValid) try { ImagePlayer.attachC1Surface(s) } catch (_: Throwable) {}
                             }
                         } else if (InfoProcesser.videoStatus?.isVideoEnable == true) {
                             VideoPlayer.c1_camera_play()
@@ -240,7 +237,7 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG C1.setPreviewCallbackWithBuffer: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG C1.setPreviewCB: $e") }
 
         try {
             XposedHelpers.findAndHookMethod("android.hardware.Camera", cl,
@@ -253,15 +250,18 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG C1.addCallbackBuffer: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG C1.addCallbackBuf: $e") }
 
         try {
             XposedHelpers.findAndHookMethod("android.hardware.Camera", cl, "takePicture",
                 Camera.ShutterCallback::class.java, Camera.PictureCallback::class.java,
                 Camera.PictureCallback::class.java, Camera.PictureCallback::class.java,
                 object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        capturePending.set(true)
+                        XposedBridge.log("$TAG takePicture → capturePending=true")
+                    }
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        XposedBridge.log("$TAG takePicture FIRED imageActive=${ImagePlayer.isActive.value}")
                         if (param.args[0] != null) hookYUVCb(param)
                         if (param.args[2] != null) hookJPEGCb(param, 2)
                     }
@@ -303,11 +303,10 @@ class MainHook : IXposedHookLoadPackage {
                 "addTarget", Surface::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
-                        val surface = param.args[0] as? Surface ?: return
-                        if (surface == c2_virtual_surface) return
-                        if (nonPreviewSurfaces.contains(surface)) return
+                        val s = param.args[0] as? Surface ?: return
+                        if (s == c2_virtual_surface || nonPreviewSurfaces.contains(s)) return
                         val virt = c2_virtual_surface ?: return
-                        original_preview_Surface = surface
+                        original_preview_Surface = s
                         param.args[0] = virt
                     }
                 }
@@ -320,7 +319,8 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         if (ImagePlayer.isActive.value) {
-                            ImagePlayer.attachSurface(c2_virtual_surface ?: return)
+                            val virt = c2_virtual_surface
+                            if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
                         } else if (InfoProcesser.videoStatus?.isVideoEnable == true) {
                             VideoPlayer.camera2Play()
                         }
@@ -347,6 +347,7 @@ class MainHook : IXposedHookLoadPackage {
                     c2_reader_Surfcae = null
                     original_preview_Surface = null
                     nonPreviewSurfaces.clear()
+                    stillReaderSurfaces.clear()
                     val devCls = (param.args[0] ?: return).javaClass
                     hookSessionCreation(devCls, lpparam)
                 }
@@ -363,6 +364,9 @@ class MainHook : IXposedHookLoadPackage {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val original = param.args[0] as? List<Surface> ?: return
                         param.args[0] = filterAndSwapSurfaceList(original)
+                        (param.args[1] as? CameraCaptureSession.StateCallback)?.let {
+                            hookSessionCallback(it.javaClass)
+                        }
                     }
                 }
             )
@@ -397,21 +401,70 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 )
             } catch (e: Throwable) { XposedBridge.log("$TAG session(SC): $e") }
+        }
 
-            try {
-                XposedHelpers.findAndHookMethod(devCls, "createCaptureSession",
-                    List::class.java, java.util.concurrent.Executor::class.java,
-                    CameraCaptureSession.StateCallback::class.java,
-                    object : XC_MethodHook() {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun beforeHookedMethod(param: MethodHookParam) {
-                            val original = param.args[0] as? List<Surface> ?: return
-                            param.args[0] = filterAndSwapSurfaceList(original)
+        hookCaptureMethod(devCls)
+    }
+
+    private val hookedSessionClasses = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+
+    private fun hookSessionCallback(cls: Class<*>) {
+        if (!hookedSessionClasses.add("cb_${cls.name}")) return
+        try {
+            XposedHelpers.findAndHookMethod(cls, "onConfigured",
+                CameraCaptureSession::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        XposedBridge.log("$TAG session onConfigured imageActive=${ImagePlayer.isActive.value}")
+                        if (ImagePlayer.isActive.value) {
+                            val virt = c2_virtual_surface
+                            if (virt != null && virt.isValid) ImagePlayer.attachSurface(virt)
+                        } else if (InfoProcesser.videoStatus?.isVideoEnable == true) {
+                            VideoPlayer.camera2Play()
                         }
                     }
-                )
-            } catch (_: Throwable) {}
-        }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG hookSessionCallback: $e") }
+    }
+
+    private fun hookCaptureMethod(devCls: Class<*>) {
+        if (!hookedSessionClasses.add("cap_${devCls.name}")) return
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.hardware.camera2.CameraCaptureSession",
+                devCls.classLoader ?: return,
+                "capture",
+                CaptureRequest::class.java,
+                CameraCaptureSession.CaptureCallback::class.java,
+                Handler::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        capturePending.set(true)
+                        XposedBridge.log("$TAG session.capture → capturePending=true")
+                    }
+                }
+            )
+        } catch (e: Throwable) { XposedBridge.log("$TAG hookCapture: $e") }
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.hardware.camera2.CameraCaptureSession",
+                devCls.classLoader ?: return,
+                "captureBurst",
+                List::class.java,
+                CameraCaptureSession.CaptureCallback::class.java,
+                Handler::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (!ImagePlayer.isActive.value) return
+                        capturePending.set(true)
+                        XposedBridge.log("$TAG session.captureBurst → capturePending=true")
+                    }
+                }
+            )
+        } catch (_: Throwable) {}
     }
 
     private fun hookImageReader(lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -430,6 +483,12 @@ class MainHook : IXposedHookLoadPackage {
                         try {
                             val surf = reader.javaClass.getMethod("getSurface").invoke(reader) as? Surface ?: return
                             nonPreviewSurfaces.add(surf)
+                            if (fmt == android.graphics.ImageFormat.JPEG ||
+                                fmt == android.graphics.ImageFormat.RAW_SENSOR ||
+                                fmt == android.graphics.ImageFormat.RAW10) {
+                                stillReaderSurfaces.add(System.identityHashCode(reader))
+                                XposedBridge.log("$TAG IR: registered as STILL reader fmt=$fmt")
+                            }
                             VideoPlayer.addImageWriterTarget(surf, fmt, w, h)
                         } catch (e: Throwable) { XposedBridge.log("$TAG IR.newInstance inner: $e") }
                     }
@@ -447,11 +506,20 @@ class MainHook : IXposedHookLoadPackage {
             )
         } catch (_: Throwable) {}
 
-        // Class-level acquire hooks — fires regardless of WHEN the ImageReader was created
         val acquireHook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam) {
                 if (!ImagePlayer.isActive.value) return
-                val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
+
+                val isStillReader = stillReaderSurfaces.contains(System.identityHashCode(param.thisObject))
+                val pending       = capturePending.getAndSet(false)
+
+                XposedBridge.log("$TAG acquireImage: isStill=$isStillReader pending=$pending")
+
+                if (!isStillReader && !pending) return
+
+                val bmp = ImagePlayer.currentBitmapSnapshot() ?: run {
+                    XposedBridge.log("$TAG acquireImage: no bitmap"); return
+                }
                 val image = param.result as? Image ?: return
 
                 val readerW = try { param.thisObject.javaClass.getMethod("getWidth") .invoke(param.thisObject) as? Int ?: 0 } catch (_: Throwable) { 0 }
@@ -461,7 +529,7 @@ class MainHook : IXposedHookLoadPackage {
                     val fmt  = image.format
                     val capW = image.width.takeIf  { it > 0 } ?: readerW.takeIf { it > 0 } ?: bmp.width
                     val capH = image.height.takeIf { it > 0 } ?: readerH.takeIf { it > 0 } ?: bmp.height
-                    XposedBridge.log("$TAG acquireImage FIRED fmt=$fmt ${capW}x${capH} bmp=${bmp.width}x${bmp.height}")
+                    XposedBridge.log("$TAG acquireImage INJECT fmt=$fmt ${capW}x${capH} bmp=${bmp.width}x${bmp.height}")
 
                     when (fmt) {
                         android.graphics.ImageFormat.JPEG -> {
@@ -476,7 +544,7 @@ class MainHook : IXposedHookLoadPackage {
                             buf.put(jpeg, 0, minOf(jpeg.size, buf.capacity()))
                             buf.rewind()
                             resolveCtx()?.let { showToast(it, "Captured: ${capW}×${capH} ← ${bmp.width}×${bmp.height}") }
-                            XposedBridge.log("$TAG acquireImage JPEG: ${jpeg.size}b")
+                            XposedBridge.log("$TAG acquireImage JPEG done: ${jpeg.size}b")
                         }
                         android.graphics.ImageFormat.YUV_420_888,
                         android.graphics.ImageFormat.NV21,
@@ -485,13 +553,15 @@ class MainHook : IXposedHookLoadPackage {
                             val nv21 = VideoPlayer.bitmapToNv21Public(composite, capW, capH)
                             if (composite !== bmp) composite.recycle()
                             writeNV21ToImage(image, nv21, capW, capH)
-                            XposedBridge.log("$TAG acquireImage YUV: ${capW}x${capH}")
+                            resolveCtx()?.let { showToast(it, "Captured YUV: ${capW}×${capH}") }
+                            XposedBridge.log("$TAG acquireImage YUV done")
                         }
-                        else -> XposedBridge.log("$TAG acquireImage: unhandled fmt=$fmt")
+                        else -> XposedBridge.log("$TAG acquireImage: fmt=$fmt not handled")
                     }
-                } catch (e: Throwable) { XposedBridge.log("$TAG acquireImage swap: $e") }
+                } catch (e: Throwable) { XposedBridge.log("$TAG acquireImage err: $e") }
             }
         }
+
         try {
             XposedHelpers.findAndHookMethod("android.media.ImageReader", cl, "acquireLatestImage", acquireHook)
             XposedBridge.log("$TAG hooked IR.acquireLatestImage")
@@ -503,10 +573,8 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     private fun writeNV21ToImage(img: Image, nv21: ByteArray, w: Int, h: Int) {
-        val planes = img.planes
-        val ySize  = w * h
-        val yBuf   = planes[0].buffer
-        val yStr   = planes[0].rowStride
+        val planes = img.planes; val ySize = w * h
+        val yBuf = planes[0].buffer; val yStr = planes[0].rowStride
         if (yStr == w) {
             yBuf.put(nv21, 0, minOf(ySize, yBuf.remaining(), nv21.size))
         } else {
@@ -535,7 +603,10 @@ class MainHook : IXposedHookLoadPackage {
                 "createInputSurface",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        (param.result as? Surface)?.let { nonPreviewSurfaces.add(it) }
+                        (param.result as? Surface)?.let {
+                            nonPreviewSurfaces.add(it)
+                            XposedBridge.log("$TAG MediaCodec.createInputSurface registered")
+                        }
                     }
                 }
             )
@@ -549,8 +620,7 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         if (!shouldInjectCamera()) return
-                        val cam = param.args[0] as? Camera ?: return
-                        try { cam.setPreviewTexture(makeFakeST(null)) } catch (_: Throwable) {}
+                        try { (param.args[0] as? Camera)?.setPreviewTexture(makeFakeST(null)) } catch (_: Throwable) {}
                     }
                 }
             )
@@ -560,7 +630,10 @@ class MainHook : IXposedHookLoadPackage {
                 "getSurface",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        (param.result as? Surface)?.let { nonPreviewSurfaces.add(it) }
+                        (param.result as? Surface)?.let {
+                            nonPreviewSurfaces.add(it)
+                            XposedBridge.log("$TAG MR.getSurface registered")
+                        }
                     }
                 }
             )
@@ -586,8 +659,7 @@ class MainHook : IXposedHookLoadPackage {
 
     private fun createVirtualSurface() {
         if (!needRecreate && c2_virtual_surface?.isValid == true) return
-        c2VirtualSurfaceTexture?.release()
-        c2_virtual_surface?.release()
+        c2VirtualSurfaceTexture?.release(); c2_virtual_surface?.release()
         c2VirtualSurfaceTexture = SurfaceTexture(10).also { it.setDefaultBufferSize(720, 1280) }
         c2_virtual_surface = Surface(c2VirtualSurfaceTexture!!)
         needRecreate = false
@@ -601,9 +673,7 @@ class MainHook : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(p: MethodHookParam) {
                         XposedBridge.log("$TAG hookJPEGCb FIRED imageActive=${ImagePlayer.isActive.value}")
-                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: run {
-                            XposedBridge.log("$TAG hookJPEGCb: no bitmap"); return
-                        }
+                        val bmp = ImagePlayer.currentBitmapSnapshot() ?: return
                         val camW = try { (param.thisObject as Camera).parameters.pictureSize?.width  ?: bmp.width  } catch (_: Throwable) { bmp.width }
                         val camH = try { (param.thisObject as Camera).parameters.pictureSize?.height ?: bmp.height } catch (_: Throwable) { bmp.height }
                         val composite = compositeOnCapture(bmp, camW, camH)
@@ -612,7 +682,7 @@ class MainHook : IXposedHookLoadPackage {
                         if (composite !== bmp) composite.recycle()
                         p.args[0] = stream.toByteArray()
                         resolveCtx()?.let { showToast(it, "Captured: ${camW}×${camH} ← ${bmp.width}×${bmp.height}") }
-                        XposedBridge.log("$TAG hookJPEGCb: done ${bmp.width}×${bmp.height} → ${camW}×${camH}")
+                        capturePending.set(false)
                     }
                 }
             )
@@ -668,6 +738,6 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 }
             )
-        } catch (e: Throwable) { XposedBridge.log("$TAG hookPreviewCallback: $e") }
+        } catch (e: Throwable) { XposedBridge.log("$TAG hookPreviewCB: $e") }
     }
 }

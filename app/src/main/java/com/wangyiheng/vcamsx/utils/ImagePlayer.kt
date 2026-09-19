@@ -95,9 +95,6 @@ object ImagePlayer {
         }
     }
 
-    // ── Image → looping MP4 ───────────────────────────────────────────────────
-    // Letterboxes into 720×1280 preserving aspect ratio (1.0f cap = never upscale).
-    // Never stretches. Fixes the pre-composite distortion for landscape images.
     private fun bitmapToMp4Loop(src: Bitmap, outFile: File) {
         val W   = 720; val H = 1280
         val FPS = 1;   val DURATION_SEC = 30
@@ -196,9 +193,20 @@ object ImagePlayer {
     fun activateInjection() {
         if (!hasImage.value) return
         mainHandler.post { isActive.value = true }
-        val bmp  = currentBitmap ?: return
-        val virt = HookBridge.getVirtualSurface()?.takeIf { it.isValid } ?: return
-        startRenderer(bmp, virt)
+        val bmp = currentBitmap ?: return
+        val virt = HookBridge.getVirtualSurface()?.takeIf { it.isValid }
+        if (virt != null) {
+            startRenderer(bmp, virt)
+            return
+        }
+        val fakeST = HookBridge.getFakeSurfaceTexture()
+        if (fakeST != null) {
+            try {
+                val s = Surface(fakeST)
+                if (s.isValid) { startRenderer(bmp, s); return }
+            } catch (_: Exception) {}
+        }
+        Log.d(TAG, "activateInjection: no surface yet, renderer will attach on camera open")
     }
 
     fun stop() {
